@@ -57,6 +57,26 @@ function isValidTime(time: string | null): boolean {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
 }
 
+// Нормализация буквенного уровня: русские → латинские, унификация разделителей
+function normalizeLevel(levelStr: string): string {
+  const rusToLat: Record<string, string> = {
+    'А': 'A', 'В': 'B', 'С': 'C', 'Д': 'D', 'Е': 'E', 'Ф': 'F',
+    'а': 'A', 'в': 'B', 'с': 'C', 'д': 'D', 'е': 'E', 'ф': 'F'
+  }
+  
+  let normalized = levelStr.toUpperCase()
+  
+  // Заменяем русские буквы на латинские
+  for (const [rus, lat] of Object.entries(rusToLat)) {
+    normalized = normalized.replace(new RegExp(rus, 'g'), lat)
+  }
+  
+  // Унифицируем разделители: все варианты → дефис
+  normalized = normalized.replace(/\s*[-–—\/]\s*/g, '-')
+  
+  return normalized.trim()
+}
+
 // Поиск локации из справочника
 function findLocation(text: string, knownLocations: Location[]): { name: string; id: string } | null {
   const textLower = text.toLowerCase()
@@ -163,11 +183,57 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   const priceMatch = text.match(/(\d+)\s*(руб|₽|rub|р\.?)/i) || text.match(/(₽|руб|rub)\s*(\d+)/i)
   const price = priceMatch ? parseInt(priceMatch[1] || priceMatch[2]) : null
   
-  // Извлекаем уровень
+  // Извлекаем уровень (приоритет: буквенный → "все уровни" → текстовый)
   let level: string | null = null
-  if (/начин|beginner|новичк/i.test(text)) level = 'Начинающий'
-  else if (/средн|intermediate|middle/i.test(text)) level = 'Средний'
-  else if (/продвин|advanced|профи/i.test(text)) level = 'Продвинутый'
+  
+  // 1. Ищем буквенный уровень: "уровень D-E", "level C", "ур. B-C", или просто "D-E" рядом с контекстом
+  const letterLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
+  if (letterLevelMatch) {
+    level = normalizeLevel(letterLevelMatch[1])
+    console.log(`Message ${messageId}: found letter level from context = ${level}`)
+  }
+  
+  // 2. Ищем буквы уровня в формате "D-E", "C/D" без явного слова "уровень"
+  if (!level) {
+    const standaloneLevelMatch = text.match(/\b([A-FА-Е])\s*[-–—\/]\s*([A-FА-Е])\b/i)
+    if (standaloneLevelMatch) {
+      level = normalizeLevel(standaloneLevelMatch[1] + '-' + standaloneLevelMatch[2])
+      console.log(`Message ${messageId}: found standalone letter level = ${level}`)
+    }
+  }
+  
+  // 3. Проверяем "ВСЕ УРОВНИ"
+  if (!level && /все\s*уровни|all\s*levels/i.test(text)) {
+    level = 'Все уровни'
+    console.log(`Message ${messageId}: found "все уровни"`)
+  }
+  
+  // 4. Ищем уровень в контексте "НОВИЧКИ E-F"
+  if (!level) {
+    const noviceMatch = text.match(/(?:новичк[иа]?|начинающ[ие]+)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
+    if (noviceMatch) {
+      level = normalizeLevel(noviceMatch[1]) + ' (новички)'
+      console.log(`Message ${messageId}: found novice level = ${level}`)
+    }
+  }
+  
+  // 5. Fallback на текстовые описания
+  if (!level) {
+    if (/начин|beginner|новичк/i.test(text)) {
+      level = 'Начинающий'
+      console.log(`Message ${messageId}: found text level "Начинающий"`)
+    } else if (/средн|intermediate|middle/i.test(text)) {
+      level = 'Средний'
+      console.log(`Message ${messageId}: found text level "Средний"`)
+    } else if (/продвин|advanced|профи/i.test(text)) {
+      level = 'Продвинутый'
+      console.log(`Message ${messageId}: found text level "Продвинутый"`)
+    }
+  }
+  
+  if (!level) {
+    console.log(`Message ${messageId}: no level found`)
+  }
   
   // Извлекаем тренера
   const coachMatch = text.match(/(?:тренер|coach|ведущ[ий|ая])[:\s]+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
