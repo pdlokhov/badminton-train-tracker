@@ -88,6 +88,7 @@ export type Database = {
           time_end: string | null
           time_start: string | null
           title: string | null
+          type: string | null
           updated_at: string
         }
         Insert: {
@@ -106,6 +107,7 @@ export type Database = {
           time_end?: string | null
           time_start?: string | null
           title?: string | null
+          type?: string | null
           updated_at?: string
         }
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           time_end?: string | null
           time_start?: string | null
           title?: string | null
+          type?: string | null
           updated_at?: string
         }
         Relationships: [
