@@ -61,7 +61,8 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       .from("trainings")
       .select("*, channels(name)")
       .or(`date.gt.${dateFrom || today},and(date.eq.${dateFrom || today},time_start.gte.${currentTime})`)
-      .order("date", { ascending: true, nullsFirst: false });
+      .order("date", { ascending: true, nullsFirst: false })
+      .order("time_start", { ascending: true, nullsFirst: false });
 
     if (dateTo) {
       query = query.lte("date", dateTo);
