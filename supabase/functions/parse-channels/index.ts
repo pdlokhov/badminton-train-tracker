@@ -26,52 +26,121 @@ interface ParsedTraining {
   message_id: string
 }
 
-function parseTrainingFromText(text: string, messageId: string): ParsedTraining {
+// Проверка: содержит ли текст валидную дату тренировки DD.MM
+function containsTrainingDate(text: string): { valid: boolean; day: number; month: number } {
+  const dateMatch = text.match(/\b(\d{1,2})\.(\d{1,2})\b/)
+  if (!dateMatch) return { valid: false, day: 0, month: 0 }
+  
+  const day = parseInt(dateMatch[1])
+  const month = parseInt(dateMatch[2])
+  
+  // Валидация: день 1-31, месяц 1-12
+  const valid = day >= 1 && day <= 31 && month >= 1 && month <= 12
+  return { valid, day, month }
+}
+
+// Валидация времени HH:MM
+function isValidTime(time: string | null): boolean {
+  if (!time) return true // null допустим
+  const match = time.match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return false
+  const hours = parseInt(match[1])
+  const minutes = parseInt(match[2])
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
+}
+
+function parseTrainingFromText(text: string, messageId: string): ParsedTraining | null {
+  // ШАГ 1: Проверяем наличие валидной даты DD.MM
+  const dateCheck = containsTrainingDate(text)
+  if (!dateCheck.valid) {
+    console.log(`Message ${messageId}: SKIP - no valid date found`)
+    return null
+  }
+  
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   
-  // Try to extract date (formats: DD.MM, DD.MM.YYYY, DD/MM, etc.)
-  const dateMatch = text.match(/(\d{1,2})[\.\/](\d{1,2})(?:[\.\/](\d{2,4}))?/)
+  // ШАГ 2: Извлекаем дату (сначала дата, потом время!)
+  const dateRegex = /\b(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?\b/
+  const dateMatch = text.match(dateRegex)
   let date: string | null = null
+  
   if (dateMatch) {
     const day = dateMatch[1].padStart(2, '0')
     const month = dateMatch[2].padStart(2, '0')
-    const year = dateMatch[3] ? (dateMatch[3].length === 2 ? '20' + dateMatch[3] : dateMatch[3]) : new Date().getFullYear().toString()
+    let year: string
+    
+    if (dateMatch[3]) {
+      year = dateMatch[3].length === 2 ? '20' + dateMatch[3] : dateMatch[3]
+    } else {
+      // Определяем год автоматически
+      const currentMonth = new Date().getMonth() + 1
+      const parsedMonth = parseInt(month)
+      const currentYear = new Date().getFullYear()
+      
+      // Если месяц меньше текущего, скорее всего это следующий год
+      year = parsedMonth < currentMonth - 1 ? (currentYear + 1).toString() : currentYear.toString()
+    }
+    
     date = `${year}-${month}-${day}`
+    console.log(`Message ${messageId}: extracted date = ${date}`)
   }
   
-  // Try to extract time (formats: HH:MM, HH.MM)
-  const timeMatches = text.match(/(\d{1,2})[:\.](\d{2})/g)
+  // ШАГ 3: Извлекаем время - ТОЛЬКО формат с двоеточием HH:MM
   let time_start: string | null = null
   let time_end: string | null = null
-  if (timeMatches && timeMatches.length >= 1) {
-    time_start = timeMatches[0].replace('.', ':')
-    if (timeMatches.length >= 2) {
-      time_end = timeMatches[1].replace('.', ':')
+  
+  // Сначала пробуем найти диапазон времени
+  const timeRangeMatch = text.match(/(\d{1,2}:\d{2})\s*[-–—до]\s*(\d{1,2}:\d{2})/)
+  if (timeRangeMatch) {
+    time_start = timeRangeMatch[1]
+    time_end = timeRangeMatch[2]
+    console.log(`Message ${messageId}: time range = ${time_start} - ${time_end}`)
+  } else {
+    // Ищем отдельные времена (только с двоеточием!)
+    const timeRegex = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g
+    const timeMatches = text.match(timeRegex)
+    
+    if (timeMatches && timeMatches.length >= 1) {
+      time_start = timeMatches[0]
+      if (timeMatches.length >= 2) {
+        time_end = timeMatches[1]
+      }
+      console.log(`Message ${messageId}: times found = ${timeMatches.join(', ')}`)
     }
   }
   
-  // Try to extract price
+  // ШАГ 4: Валидация времени перед сохранением
+  if (!isValidTime(time_start)) {
+    console.log(`Message ${messageId}: invalid time_start=${time_start}, setting to null`)
+    time_start = null
+  }
+  if (!isValidTime(time_end)) {
+    console.log(`Message ${messageId}: invalid time_end=${time_end}, setting to null`)
+    time_end = null
+  }
+  
+  // Извлекаем цену
   const priceMatch = text.match(/(\d+)\s*(руб|₽|rub|р\.?)/i) || text.match(/(₽|руб|rub)\s*(\d+)/i)
   const price = priceMatch ? parseInt(priceMatch[1] || priceMatch[2]) : null
   
-  // Try to extract level
+  // Извлекаем уровень
   let level: string | null = null
   if (/начин|beginner|новичк/i.test(text)) level = 'Начинающий'
   else if (/средн|intermediate|middle/i.test(text)) level = 'Средний'
   else if (/продвин|advanced|профи/i.test(text)) level = 'Продвинутый'
   
-  // Extract coach (look for "тренер:", "coach:", or capitalized names after keywords)
+  // Извлекаем тренера
   const coachMatch = text.match(/(?:тренер|coach|ведущ[ий|ая])[:\s]+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
   const coach = coachMatch ? coachMatch[1] : null
   
-  // Extract location
+  // Извлекаем локацию
   const locationMatch = text.match(/(?:адрес|место|локация|where|location)[:\s]+(.+?)(?:\n|$)/i)
   const location = locationMatch ? locationMatch[1].trim() : null
   
-  // Title is usually the first non-empty line or line with emoji
+  // Заголовок - первая строка
   const title = lines[0] || null
   
-  return {
+  const result: ParsedTraining = {
     title,
     date,
     time_start,
@@ -84,6 +153,10 @@ function parseTrainingFromText(text: string, messageId: string): ParsedTraining 
     raw_text: text,
     message_id: messageId
   }
+  
+  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}`)
+  
+  return result
 }
 
 async function fetchTelegramChannel(username: string): Promise<{ text: string, messageId: string }[]> {
@@ -105,7 +178,6 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
   const messages: { text: string, messageId: string }[] = []
   
   // Parse messages from HTML
-  // Look for tgme_widget_message_wrap elements
   const messageRegex = /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
   let match
   
@@ -128,8 +200,13 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
     }
   }
   
-  console.log(`Found ${messages.length} messages in ${username}`)
-  return messages
+  console.log(`Found ${messages.length} total messages in ${username}`)
+  
+  // Фильтруем только сообщения с датой DD.MM
+  const trainingMessages = messages.filter(msg => containsTrainingDate(msg.text).valid)
+  console.log(`Filtered to ${trainingMessages.length} training messages (with DD.MM date)`)
+  
+  return trainingMessages
 }
 
 Deno.serve(async (req) => {
@@ -164,15 +241,22 @@ Deno.serve(async (req) => {
     
     let totalParsed = 0
     let totalAdded = 0
+    let totalSkipped = 0
 
     for (const channel of channels as Channel[]) {
-      console.log(`Processing channel: ${channel.name} (@${channel.username})`)
+      console.log(`\n=== Processing channel: ${channel.name} (@${channel.username}) ===`)
       
       const messages = await fetchTelegramChannel(channel.username)
       totalParsed += messages.length
       
       for (const msg of messages) {
         const training = parseTrainingFromText(msg.text, msg.messageId)
+        
+        // Пропускаем если парсинг не удался (нет валидной даты)
+        if (!training) {
+          totalSkipped++
+          continue
+        }
         
         const { error: upsertError } = await supabase
           .from('trainings')
@@ -184,21 +268,26 @@ Deno.serve(async (req) => {
           })
         
         if (upsertError) {
-          console.error('Error upserting training:', upsertError)
+          console.error(`Error upserting training ${msg.messageId}:`, upsertError)
+          totalSkipped++
         } else {
           totalAdded++
         }
       }
     }
 
-    console.log(`Parsing complete. Parsed: ${totalParsed}, Added/Updated: ${totalAdded}`)
+    console.log(`\n=== Parsing complete ===`)
+    console.log(`Total messages with dates: ${totalParsed}`)
+    console.log(`Successfully added/updated: ${totalAdded}`)
+    console.log(`Skipped/errors: ${totalSkipped}`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Обработано ${channels.length} каналов`,
         parsed: totalParsed,
-        added: totalAdded 
+        added: totalAdded,
+        skipped: totalSkipped
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
