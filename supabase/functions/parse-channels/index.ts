@@ -35,10 +35,8 @@ interface ParsedTraining {
   message_id: string
 }
 
-// Определение типа тренировки: игровая, мини-группа, мини-игровая
+// Определение типа тренировки: игровая, мини-группа, мини-игровая, групповая
 function parseTrainingType(text: string): string | null {
-  const textLower = text.toLowerCase()
-  
   // Порядок важен: сначала проверяем составные типы
   // "мини-игровая" или "мини игровая"
   if (/мини[\s-]?игров/i.test(text)) {
@@ -48,6 +46,11 @@ function parseTrainingType(text: string): string | null {
   // "мини-группа" или "мини группа"
   if (/мини[\s-]?групп/i.test(text)) {
     return 'мини-группа'
+  }
+  
+  // "групповая тренировка" или "групповая"
+  if (/групповая/i.test(text)) {
+    return 'групповая'
   }
   
   // "игровая" (но не "мини-игровая" - уже проверили выше)
