@@ -26,12 +26,36 @@ interface ParsedTraining {
   time_end: string | null
   coach: string | null
   level: string | null
+  type: string | null
   price: number | null
   location: string | null
   location_id: string | null
   description: string | null
   raw_text: string
   message_id: string
+}
+
+// Определение типа тренировки: игровая, мини-группа, мини-игровая
+function parseTrainingType(text: string): string | null {
+  const textLower = text.toLowerCase()
+  
+  // Порядок важен: сначала проверяем составные типы
+  // "мини-игровая" или "мини игровая"
+  if (/мини[\s-]?игров/i.test(text)) {
+    return 'мини-игровая'
+  }
+  
+  // "мини-группа" или "мини группа"
+  if (/мини[\s-]?групп/i.test(text)) {
+    return 'мини-группа'
+  }
+  
+  // "игровая" (но не "мини-игровая" - уже проверили выше)
+  if (/игров/i.test(text)) {
+    return 'игровая'
+  }
+  
+  return null
 }
 
 // Проверка: содержит ли текст валидную дату тренировки DD.MM
@@ -247,6 +271,12 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   // Заголовок - первая строка
   const title = lines[0] || null
   
+  // Извлекаем тип тренировки
+  const type = parseTrainingType(text)
+  if (type) {
+    console.log(`Message ${messageId}: found training type = ${type}`)
+  }
+  
   const result: ParsedTraining = {
     title,
     date,
@@ -254,6 +284,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     time_end,
     coach,
     level,
+    type,
     price,
     location,
     location_id: location_id || null,
@@ -262,7 +293,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     message_id: messageId
   }
   
-  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}, location=${location}`)
+  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}, type=${type}, location=${location}`)
   
   return result
 }
