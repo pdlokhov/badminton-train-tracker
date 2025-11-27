@@ -4,8 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ChannelForm } from "@/components/ChannelForm";
 import { ChannelList } from "@/components/ChannelList";
+import { TrainingsList } from "@/components/TrainingsList";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -19,16 +21,26 @@ const Index = () => {
   const handleParse = async () => {
     setIsParsing(true);
     try {
-      // TODO: Implement parser edge function call
-      toast({
-        title: "Парсинг",
-        description: "Функция парсинга будет добавлена",
-      });
+      const { data, error } = await supabase.functions.invoke("parse-channels");
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.success) {
+        toast({
+          title: "Парсинг завершён",
+          description: `${data.message}. Найдено: ${data.parsed}, добавлено: ${data.added}`,
+        });
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
     } catch (error) {
       console.error("Parse error:", error);
       toast({
-        title: "Ошибка",
-        description: "Не удалось запустить парсинг",
+        title: "Ошибка парсинга",
+        description: error instanceof Error ? error.message : "Не удалось запустить парсинг",
         variant: "destructive",
       });
     } finally {
@@ -47,37 +59,25 @@ const Index = () => {
           </Button>
         </div>
         
-        <Tabs defaultValue="channels" className="space-y-4">
+        <Tabs defaultValue="schedule" className="space-y-4">
           <TabsList>
             <TabsTrigger value="schedule">Расписание</TabsTrigger>
             <TabsTrigger value="channels">Каналы</TabsTrigger>
           </TabsList>
 
           <TabsContent value="schedule">
-            <Card>
-              <CardHeader>
-                <CardTitle>Расписание тренировок</CardTitle>
-                <CardDescription>
-                  Здесь будет отображаться расписание из добавленных каналов
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Добавьте каналы во вкладке "Каналы" для начала парсинга
-                </p>
-              </CardContent>
-            </Card>
+            <TrainingsList refreshTrigger={refreshTrigger} />
           </TabsContent>
 
           <TabsContent value="channels">
             <Card>
               <CardHeader>
-                <CardTitle>Управление каналами</CardTitle>
+                <CardTitle>Telegram каналы</CardTitle>
                 <CardDescription>
-                  Добавьте Telegram каналы для парсинга расписания тренировок
+                  Добавьте каналы с расписанием тренировок для парсинга
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <ChannelForm onChannelAdded={handleChannelAdded} />
                 <ChannelList refreshTrigger={refreshTrigger} />
               </CardContent>

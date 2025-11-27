@@ -1,1 +1,4 @@
 project_id = "xqquqrsqtnjnzvyubhzc"
+
+[functions.parse-channels]
+verify_jwt = false
