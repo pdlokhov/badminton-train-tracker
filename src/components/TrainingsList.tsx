@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "lucide-react";
+import { Calendar, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -30,9 +30,16 @@ interface TrainingsListProps {
   refreshTrigger: number;
 }
 
+type SortField = 'date' | 'time_start' | 'type' | 'coach' | 'level' | 'price' | 'location' | 'channel';
+type SortDirection = 'asc' | 'desc' | null;
+
 export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Sorting
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   
   // Filters
   const [dateFrom, setDateFrom] = useState("");
@@ -46,13 +53,12 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const fetchTrainings = async () => {
     setLoading(true);
     
-    // Получаем сегодняшнюю дату в формате YYYY-MM-DD
     const today = format(new Date(), "yyyy-MM-dd");
     
     let query = supabase
       .from("trainings")
       .select("*, channels(name)")
-      .gte("date", dateFrom || today) // По умолчанию показываем только будущие тренировки
+      .gte("date", dateFrom || today)
       .order("date", { ascending: true, nullsFirst: false });
 
     if (dateTo) {
@@ -88,6 +94,83 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     fetchTrainings();
   }, [refreshTrigger, dateFrom, dateTo, coachFilter, levelFilter, locationFilter, priceFrom, priceTo]);
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedTrainings = useMemo(() => {
+    if (!sortField || !sortDirection) return trainings;
+
+    return [...trainings].sort((a, b) => {
+      let aVal: string | number | null = null;
+      let bVal: string | number | null = null;
+
+      switch (sortField) {
+        case 'date':
+          aVal = a.date;
+          bVal = b.date;
+          break;
+        case 'time_start':
+          aVal = a.time_start;
+          bVal = b.time_start;
+          break;
+        case 'type':
+          aVal = a.type;
+          bVal = b.type;
+          break;
+        case 'coach':
+          aVal = a.coach;
+          bVal = b.coach;
+          break;
+        case 'level':
+          aVal = a.level;
+          bVal = b.level;
+          break;
+        case 'price':
+          aVal = a.price;
+          bVal = b.price;
+          break;
+        case 'location':
+          aVal = a.location;
+          bVal = b.location;
+          break;
+        case 'channel':
+          aVal = a.channels?.name || null;
+          bVal = b.channels?.name || null;
+          break;
+      }
+
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
+      const comparison = String(aVal).localeCompare(String(bVal), 'ru');
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [trainings, sortField, sortDirection]);
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    if (sortDirection === 'asc') return <ArrowUp className="ml-1 h-3 w-3" />;
+    return <ArrowDown className="ml-1 h-3 w-3" />;
+  };
+
   const clearFilters = () => {
     setDateFrom("");
     setDateTo("");
@@ -116,10 +199,6 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     if (price === null) return "—";
     return `${price} ₽`;
   };
-
-  // Get unique values for filters
-  const uniqueCoaches = [...new Set(trainings.map(t => t.coach).filter(Boolean))];
-  const uniqueLocations = [...new Set(trainings.map(t => t.location).filter(Boolean))];
 
   return (
     <Card>
@@ -225,18 +304,58 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Время</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Тренер</TableHead>
-                  <TableHead>Уровень</TableHead>
-                  <TableHead>Цена</TableHead>
-                  <TableHead>Место</TableHead>
-                  <TableHead>Канал</TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('date')}
+                  >
+                    <span className="flex items-center">Дата<SortIcon field="date" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('time_start')}
+                  >
+                    <span className="flex items-center">Время<SortIcon field="time_start" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('type')}
+                  >
+                    <span className="flex items-center">Тип<SortIcon field="type" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('coach')}
+                  >
+                    <span className="flex items-center">Тренер<SortIcon field="coach" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('level')}
+                  >
+                    <span className="flex items-center">Уровень<SortIcon field="level" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('price')}
+                  >
+                    <span className="flex items-center">Цена<SortIcon field="price" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('location')}
+                  >
+                    <span className="flex items-center">Место<SortIcon field="location" /></span>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer select-none hover:bg-muted/50"
+                    onClick={() => handleSort('channel')}
+                  >
+                    <span className="flex items-center">Канал<SortIcon field="channel" /></span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {trainings.map((training) => (
+                {sortedTrainings.map((training) => (
                   <TableRow key={training.id}>
                     <TableCell className="whitespace-nowrap font-medium">
                       {formatDate(training.date)}
