@@ -44,14 +44,16 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
 
   const fetchTrainings = async () => {
     setLoading(true);
+    
+    // Получаем сегодняшнюю дату в формате YYYY-MM-DD
+    const today = format(new Date(), "yyyy-MM-dd");
+    
     let query = supabase
       .from("trainings")
       .select("*, channels(name)")
+      .gte("date", dateFrom || today) // По умолчанию показываем только будущие тренировки
       .order("date", { ascending: true, nullsFirst: false });
 
-    if (dateFrom) {
-      query = query.gte("date", dateFrom);
-    }
     if (dateTo) {
       query = query.lte("date", dateTo);
     }
