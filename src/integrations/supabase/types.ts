@@ -44,6 +44,33 @@ export type Database = {
         }
         Relationships: []
       }
+      locations: {
+        Row: {
+          address: string | null
+          aliases: string[] | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          aliases?: string[] | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          aliases?: string[] | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trainings: {
         Row: {
           channel_id: string
@@ -54,6 +81,7 @@ export type Database = {
           id: string
           level: string | null
           location: string | null
+          location_id: string | null
           message_id: string
           price: number | null
           raw_text: string
@@ -71,6 +99,7 @@ export type Database = {
           id?: string
           level?: string | null
           location?: string | null
+          location_id?: string | null
           message_id: string
           price?: number | null
           raw_text: string
@@ -88,6 +117,7 @@ export type Database = {
           id?: string
           level?: string | null
           location?: string | null
+          location_id?: string | null
           message_id?: string
           price?: number | null
           raw_text?: string
@@ -102,6 +132,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainings_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
         ]

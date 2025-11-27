@@ -12,6 +12,13 @@ interface Channel {
   is_active: boolean
 }
 
+interface Location {
+  id: string
+  name: string
+  address: string | null
+  aliases: string[] | null
+}
+
 interface ParsedTraining {
   title: string | null
   date: string | null
@@ -21,6 +28,7 @@ interface ParsedTraining {
   level: string | null
   price: number | null
   location: string | null
+  location_id: string | null
   description: string | null
   raw_text: string
   message_id: string
@@ -49,7 +57,39 @@ function isValidTime(time: string | null): boolean {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
 }
 
-function parseTrainingFromText(text: string, messageId: string): ParsedTraining | null {
+// Поиск локации из справочника
+function findLocation(text: string, knownLocations: Location[]): { name: string; id: string } | null {
+  const textLower = text.toLowerCase()
+  
+  for (const loc of knownLocations) {
+    // Проверяем основное имя
+    if (textLower.includes(loc.name.toLowerCase())) {
+      console.log(`Found location by name: ${loc.name}`)
+      return { name: loc.address ? `${loc.name} (${loc.address})` : loc.name, id: loc.id }
+    }
+    
+    // Проверяем алиасы
+    if (loc.aliases) {
+      for (const alias of loc.aliases) {
+        if (textLower.includes(alias.toLowerCase())) {
+          console.log(`Found location by alias "${alias}": ${loc.name}`)
+          return { name: loc.address ? `${loc.name} (${loc.address})` : loc.name, id: loc.id }
+        }
+      }
+    }
+  }
+  
+  // Fallback: вторая строка если содержит адрес в скобках
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  if (lines[1] && /\(.+\)/.test(lines[1])) {
+    console.log(`Found location from second line: ${lines[1]}`)
+    return { name: lines[1], id: '' }
+  }
+  
+  return null
+}
+
+function parseTrainingFromText(text: string, messageId: string, knownLocations: Location[]): ParsedTraining | null {
   // ШАГ 1: Проверяем наличие валидной даты DD.MM
   const dateCheck = containsTrainingDate(text)
   if (!dateCheck.valid) {
@@ -133,9 +173,10 @@ function parseTrainingFromText(text: string, messageId: string): ParsedTraining 
   const coachMatch = text.match(/(?:тренер|coach|ведущ[ий|ая])[:\s]+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
   const coach = coachMatch ? coachMatch[1] : null
   
-  // Извлекаем локацию
-  const locationMatch = text.match(/(?:адрес|место|локация|where|location)[:\s]+(.+?)(?:\n|$)/i)
-  const location = locationMatch ? locationMatch[1].trim() : null
+  // ШАГ 5: Извлекаем локацию из справочника
+  const locationResult = findLocation(text, knownLocations)
+  const location = locationResult?.name || null
+  const location_id = locationResult?.id || null
   
   // Заголовок - первая строка
   const title = lines[0] || null
@@ -149,12 +190,13 @@ function parseTrainingFromText(text: string, messageId: string): ParsedTraining 
     level,
     price,
     location,
+    location_id: location_id || null,
     description: lines.slice(1, 3).join(' ') || null,
     raw_text: text,
     message_id: messageId
   }
   
-  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}`)
+  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}, location=${location}`)
   
   return result
 }
@@ -219,6 +261,18 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
+    // Загружаем справочник локаций
+    const { data: locations, error: locationsError } = await supabase
+      .from('locations')
+      .select('*')
+    
+    if (locationsError) {
+      console.error('Error fetching locations:', locationsError)
+    }
+    
+    const knownLocations: Location[] = locations || []
+    console.log(`Loaded ${knownLocations.length} locations from database`)
+
     // Get active channels
     const { data: channels, error: channelsError } = await supabase
       .from('channels')
@@ -250,7 +304,7 @@ Deno.serve(async (req) => {
       totalParsed += messages.length
       
       for (const msg of messages) {
-        const training = parseTrainingFromText(msg.text, msg.messageId)
+        const training = parseTrainingFromText(msg.text, msg.messageId, knownLocations)
         
         // Пропускаем если парсинг не удался (нет валидной даты)
         if (!training) {
@@ -262,7 +316,8 @@ Deno.serve(async (req) => {
           .from('trainings')
           .upsert({
             channel_id: channel.id,
-            ...training
+            ...training,
+            location_id: training.location_id || null
           }, {
             onConflict: 'channel_id,message_id'
           })
