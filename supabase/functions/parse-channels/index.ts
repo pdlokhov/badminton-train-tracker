@@ -220,12 +220,24 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: found letter level from context = ${level}`)
   }
   
-  // 2. Ищем буквы уровня в формате "D-E", "C/D" без явного слова "уровень"
+  // 2. Ищем буквы уровня в формате "D-E", "C/D", "EC", "ED" без явного слова "уровень"
   if (!level) {
-    const standaloneLevelMatch = text.match(/\b([A-FА-Е])\s*[-–—\/]\s*([A-FА-Е])\b/i)
-    if (standaloneLevelMatch) {
-      level = normalizeLevel(standaloneLevelMatch[1] + '-' + standaloneLevelMatch[2])
-      console.log(`Message ${messageId}: found standalone letter level = ${level}`)
+    // Сначала проверяем двухбуквенные комбинации без разделителя (EC, ED и т.д.)
+    const twoLetterMatch = text.match(/\b([A-FА-Е]{2})\b/i)
+    if (twoLetterMatch) {
+      const letters = normalizeLevel(twoLetterMatch[1])
+      // Разделяем на две буквы
+      level = letters[0] + '-' + letters[1]
+      console.log(`Message ${messageId}: found two-letter level = ${level}`)
+    }
+    
+    // Затем проверяем с разделителем
+    if (!level) {
+      const standaloneLevelMatch = text.match(/\b([A-FА-Е])\s*[-–—\/]\s*([A-FА-Е])\b/i)
+      if (standaloneLevelMatch) {
+        level = normalizeLevel(standaloneLevelMatch[1] + '-' + standaloneLevelMatch[2])
+        console.log(`Message ${messageId}: found standalone letter level = ${level}`)
+      }
     }
   }
   
