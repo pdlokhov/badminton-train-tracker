@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ChannelForm } from "@/components/ChannelForm";
 import { ChannelList } from "@/components/ChannelList";
+import { LocationForm } from "@/components/LocationForm";
+import { LocationList } from "@/components/LocationList";
 import { TrainingsList } from "@/components/TrainingsList";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw } from "lucide-react";
@@ -15,6 +17,10 @@ const Index = () => {
   const { toast } = useToast();
 
   const handleChannelAdded = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleLocationAdded = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
@@ -63,6 +69,7 @@ const Index = () => {
           <TabsList>
             <TabsTrigger value="schedule">Расписание</TabsTrigger>
             <TabsTrigger value="channels">Каналы</TabsTrigger>
+            <TabsTrigger value="locations">Локации</TabsTrigger>
           </TabsList>
 
           <TabsContent value="schedule">
@@ -80,6 +87,21 @@ const Index = () => {
               <CardContent className="space-y-4">
                 <ChannelForm onChannelAdded={handleChannelAdded} />
                 <ChannelList refreshTrigger={refreshTrigger} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="locations">
+            <Card>
+              <CardHeader>
+                <CardTitle>Справочник локаций</CardTitle>
+                <CardDescription>
+                  Добавьте локации для автоматического распознавания в постах
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <LocationForm onLocationAdded={handleLocationAdded} />
+                <LocationList refreshTrigger={refreshTrigger} />
               </CardContent>
             </Card>
           </TabsContent>
