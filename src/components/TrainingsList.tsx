@@ -13,6 +13,7 @@ interface Training {
   id: string;
   channel_id: string;
   title: string | null;
+  type: string | null;
   date: string | null;
   time_start: string | null;
   time_end: string | null;
@@ -226,7 +227,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                 <TableRow>
                   <TableHead>Дата</TableHead>
                   <TableHead>Время</TableHead>
-                  <TableHead>Название</TableHead>
+                  <TableHead>Тип</TableHead>
                   <TableHead>Тренер</TableHead>
                   <TableHead>Уровень</TableHead>
                   <TableHead>Цена</TableHead>
@@ -243,8 +244,12 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                     <TableCell className="whitespace-nowrap">
                       {formatTime(training.time_start, training.time_end)}
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={training.title || ""}>
-                      {training.title || "—"}
+                    <TableCell>
+                      {training.type ? (
+                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                          {training.type}
+                        </span>
+                      ) : "—"}
                     </TableCell>
                     <TableCell>{training.coach || "—"}</TableCell>
                     <TableCell>
