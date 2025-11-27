@@ -44,6 +44,68 @@ export type Database = {
         }
         Relationships: []
       }
+      trainings: {
+        Row: {
+          channel_id: string
+          coach: string | null
+          created_at: string
+          date: string | null
+          description: string | null
+          id: string
+          level: string | null
+          location: string | null
+          message_id: string
+          price: number | null
+          raw_text: string
+          time_end: string | null
+          time_start: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          coach?: string | null
+          created_at?: string
+          date?: string | null
+          description?: string | null
+          id?: string
+          level?: string | null
+          location?: string | null
+          message_id: string
+          price?: number | null
+          raw_text: string
+          time_end?: string | null
+          time_start?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          coach?: string | null
+          created_at?: string
+          date?: string | null
+          description?: string | null
+          id?: string
+          level?: string | null
+          location?: string | null
+          message_id?: string
+          price?: number | null
+          raw_text?: string
+          time_end?: string | null
+          time_start?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
