@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Calendar, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
 interface Training {
   id: string;
   channel_id: string;
+  message_id: string;
   title: string | null;
   type: string | null;
   date: string | null;
@@ -24,7 +25,7 @@ interface Training {
   description: string | null;
   raw_text: string;
   spots: number | null;
-  channels?: { name: string; default_coach: string | null };
+  channels?: { name: string; default_coach: string | null; username: string };
 }
 
 interface TrainingsListProps {
@@ -78,7 +79,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name, default_coach)")
+      .select("*, channels(name, default_coach, username)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
     if (coachFilter && coachFilter !== "all") {
@@ -394,6 +395,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                   >
                     <span className="flex items-center">Клуб<SortIcon field="channel" /></span>
                   </TableHead>
+                  <TableHead className="w-[120px]">Записаться</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -435,6 +437,27 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {training.channels?.name || "—"}
+                    </TableCell>
+                    <TableCell>
+                      {training.channels?.username && training.message_id ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <a 
+                            href={`https://t.me/${training.channels.username}/${training.message_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Записаться
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
