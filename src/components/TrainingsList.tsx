@@ -42,8 +42,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   
   // Filters
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFilter, setDateFilter] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [coachFilter, setCoachFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("");
@@ -65,19 +64,15 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     setLoading(true);
     
     const now = new Date();
-    const today = format(now, "yyyy-MM-dd");
     const currentTime = format(now, "HH:mm:ss");
+    const filterDate = dateFilter || format(now, "yyyy-MM-dd");
     
     let query = supabase
       .from("trainings")
       .select("*, channels(name)")
-      .or(`date.gt.${dateFrom || today},and(date.eq.${dateFrom || today},time_start.gte.${currentTime})`)
+      .or(`date.gt.${filterDate},and(date.eq.${filterDate},time_start.gte.${currentTime})`)
       .order("date", { ascending: true, nullsFirst: false })
       .order("time_start", { ascending: true, nullsFirst: false });
-
-    if (dateTo) {
-      query = query.lte("date", dateTo);
-    }
     if (coachFilter) {
       query = query.ilike("coach", `%${coachFilter}%`);
     }
@@ -103,7 +98,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
 
   useEffect(() => {
     fetchTrainings();
-  }, [refreshTrigger, dateFrom, dateTo, coachFilter, levelFilter, locationFilter, channelFilter]);
+  }, [refreshTrigger, dateFilter, coachFilter, levelFilter, locationFilter, channelFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -183,8 +178,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   };
 
   const clearFilters = () => {
-    setDateFrom("");
-    setDateTo("");
+    setDateFilter(format(new Date(), "yyyy-MM-dd"));
     setCoachFilter("");
     setLevelFilter("all");
     setLocationFilter("");
@@ -220,22 +214,13 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       </CardHeader>
       <CardContent>
         {/* Filters */}
-        <div className="mb-4 grid gap-3 rounded-lg border bg-muted/50 p-4 md:grid-cols-4">
+        <div className="mb-4 grid gap-3 rounded-lg border bg-muted/50 p-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Дата от</label>
+            <label className="text-xs font-medium text-muted-foreground">Дата</label>
             <Input
               type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-9"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Дата до</label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
               className="h-9"
             />
           </div>
