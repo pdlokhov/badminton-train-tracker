@@ -35,6 +35,7 @@ const normalizeUrl = (username: string): string => {
 export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
+  const [defaultCoach, setDefaultCoach] = useState("");
   const [parseImages, setParseImages] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -71,6 +72,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         url: normalizedUrl,
         username: username,
         parse_images: parseImages,
+        default_coach: defaultCoach.trim() || null,
       });
 
       if (error) {
@@ -93,6 +95,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
 
       setUrl("");
       setName("");
+      setDefaultCoach("");
       setParseImages(false);
       onChannelAdded();
     } catch (error) {
@@ -109,7 +112,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Название клуба</Label>
           <Input
@@ -128,6 +131,16 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             maxLength={255}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="defaultCoach">Тренер по умолчанию</Label>
+          <Input
+            id="defaultCoach"
+            placeholder="Имя тренера (опционально)"
+            value={defaultCoach}
+            onChange={(e) => setDefaultCoach(e.target.value)}
+            maxLength={100}
           />
         </div>
       </div>

@@ -23,7 +23,7 @@ interface Training {
   location: string | null;
   description: string | null;
   raw_text: string;
-  channels?: { name: string };
+  channels?: { name: string; default_coach: string | null };
 }
 
 interface TrainingsListProps {
@@ -67,7 +67,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name)")
+      .select("*, channels(name, default_coach)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
     if (coachFilter) {
@@ -134,8 +134,8 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
           bVal = b.type;
           break;
         case 'coach':
-          aVal = a.coach;
-          bVal = b.coach;
+          aVal = a.coach || a.channels?.default_coach;
+          bVal = b.coach || b.channels?.default_coach;
           break;
         case 'level':
           aVal = a.level;
@@ -358,7 +358,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                         </span>
                       ) : "—"}
                     </TableCell>
-                    <TableCell>{training.coach || "—"}</TableCell>
+                    <TableCell>{training.coach || training.channels?.default_coach || "—"}</TableCell>
                     <TableCell>
                       {training.level && (
                         <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
