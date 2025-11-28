@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ interface Channel {
   url: string;
   username: string;
   is_active: boolean;
+  parse_images: boolean;
   created_at: string;
 }
 
@@ -139,6 +141,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
           <TableRow>
             <TableHead>Название</TableHead>
             <TableHead>Ссылка</TableHead>
+            <TableHead className="w-[120px]">Тип парсинга</TableHead>
             <TableHead className="w-[100px]">Активен</TableHead>
             <TableHead className="w-[80px]">Действия</TableHead>
           </TableRow>
@@ -157,6 +160,19 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                   @{channel.username}
                   <ExternalLink className="h-3 w-3" />
                 </a>
+              </TableCell>
+              <TableCell>
+                {channel.parse_images ? (
+                  <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                    <Image className="h-3 w-3" />
+                    Картинки
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                    <FileText className="h-3 w-3" />
+                    Текст
+                  </Badge>
+                )}
               </TableCell>
               <TableCell>
                 <Switch

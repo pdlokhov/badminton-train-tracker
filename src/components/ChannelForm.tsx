@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
@@ -34,6 +35,7 @@ const normalizeUrl = (username: string): string => {
 export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
+  const [parseImages, setParseImages] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -68,6 +70,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         name: name.trim(),
         url: normalizedUrl,
         username: username,
+        parse_images: parseImages,
       });
 
       if (error) {
@@ -90,6 +93,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
 
       setUrl("");
       setName("");
+      setParseImages(false);
       onChannelAdded();
     } catch (error) {
       console.error("Error adding channel:", error);
@@ -126,6 +130,16 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
             maxLength={255}
           />
         </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="parse_images"
+          checked={parseImages}
+          onCheckedChange={(checked) => setParseImages(checked === true)}
+        />
+        <Label htmlFor="parse_images" className="text-sm font-normal cursor-pointer">
+          Искать расписание в картинках (вместо текстовых сообщений)
+        </Label>
       </div>
       <Button type="submit" disabled={isLoading}>
         <Plus className="mr-2 h-4 w-4" />

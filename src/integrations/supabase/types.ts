@@ -20,6 +20,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          parse_images: boolean
           updated_at: string
           url: string
           username: string
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          parse_images?: boolean
           updated_at?: string
           url: string
           username: string
@@ -38,6 +40,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          parse_images?: boolean
           updated_at?: string
           url?: string
           username?: string
