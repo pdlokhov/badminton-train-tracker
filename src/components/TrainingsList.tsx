@@ -341,7 +341,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                     className="cursor-pointer select-none hover:bg-muted/50"
                     onClick={() => handleSort('channel')}
                   >
-                    <span className="flex items-center">Канал<SortIcon field="channel" /></span>
+                    <span className="flex items-center">Клуб<SortIcon field="channel" /></span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
