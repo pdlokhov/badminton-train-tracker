@@ -57,7 +57,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
       console.error("Error fetching channels:", error);
       toast({
         title: "Ошибка",
-        description: "Не удалось загрузить список каналов",
+        description: "Не удалось загрузить список клубов",
         variant: "destructive",
       });
     } finally {
@@ -84,13 +84,13 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
 
       toast({
         title: "Успешно",
-        description: isActive ? "Канал активирован" : "Канал деактивирован",
+        description: isActive ? "Клуб активирован" : "Клуб деактивирован",
       });
     } catch (error) {
       console.error("Error toggling channel:", error);
       toast({
         title: "Ошибка",
-        description: "Не удалось обновить статус канала",
+        description: "Не удалось обновить статус клуба",
         variant: "destructive",
       });
     }
@@ -106,13 +106,13 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
 
       toast({
         title: "Успешно",
-        description: `Канал "${name}" удалён`,
+        description: `Клуб "${name}" удалён`,
       });
     } catch (error) {
       console.error("Error deleting channel:", error);
       toast({
         title: "Ошибка",
-        description: "Не удалось удалить канал",
+        description: "Не удалось удалить клуб",
         variant: "destructive",
       });
     }
@@ -129,7 +129,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
   if (channels.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        Нет добавленных каналов. Добавьте первый канал выше.
+        Нет добавленных клубов. Добавьте первый клуб выше.
       </div>
     );
   }
@@ -191,9 +191,9 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Удалить канал?</AlertDialogTitle>
+                      <AlertDialogTitle>Удалить клуб?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Вы уверены, что хотите удалить канал "{channel.name}"?
+                        Вы уверены, что хотите удалить клуб "{channel.name}"?
                         Это действие нельзя отменить.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
