@@ -7,7 +7,9 @@ import { ChannelList } from "@/components/ChannelList";
 import { LocationForm } from "@/components/LocationForm";
 import { LocationList } from "@/components/LocationList";
 import { TrainingsList } from "@/components/TrainingsList";
+import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -15,6 +17,7 @@ const Index = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isParsing, setIsParsing] = useState(false);
   const { toast } = useToast();
+  const { isAdmin, isLoading } = useAuth();
 
   const handleChannelAdded = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -54,59 +57,76 @@ const Index = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Расписание тренировок</h1>
-          <Button onClick={handleParse} disabled={isParsing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
-            {isParsing ? "Парсинг..." : "Обновить расписание"}
-          </Button>
-        </div>
-        
-        <Tabs defaultValue="schedule" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="schedule">Расписание</TabsTrigger>
-            <TabsTrigger value="channels">Каналы</TabsTrigger>
-            <TabsTrigger value="locations">Локации</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="schedule">
-            <TrainingsList refreshTrigger={refreshTrigger} />
-          </TabsContent>
-
-          <TabsContent value="channels">
-            <Card>
-              <CardHeader>
-                <CardTitle>Клубы</CardTitle>
-                <CardDescription>
-                  Добавьте клубы с расписанием тренировок для парсинга
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ChannelForm onChannelAdded={handleChannelAdded} />
-                <ChannelList refreshTrigger={refreshTrigger} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="locations">
-            <Card>
-              <CardHeader>
-                <CardTitle>Справочник локаций</CardTitle>
-                <CardDescription>
-                  Добавьте локации для автоматического распознавания в постах
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <LocationForm onLocationAdded={handleLocationAdded} />
-                <LocationList refreshTrigger={refreshTrigger} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 p-4 md:p-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Расписание тренировок</h1>
+            {isAdmin && (
+              <Button onClick={handleParse} disabled={isParsing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
+                {isParsing ? "Парсинг..." : "Обновить расписание"}
+              </Button>
+            )}
+          </div>
+          
+          {isAdmin ? (
+            <Tabs defaultValue="schedule" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="schedule">Расписание</TabsTrigger>
+                <TabsTrigger value="channels">Каналы</TabsTrigger>
+                <TabsTrigger value="locations">Локации</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="schedule">
+                <TrainingsList refreshTrigger={refreshTrigger} />
+              </TabsContent>
+
+              <TabsContent value="channels">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Клубы</CardTitle>
+                    <CardDescription>
+                      Добавьте клубы с расписанием тренировок для парсинга
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ChannelForm onChannelAdded={handleChannelAdded} />
+                    <ChannelList refreshTrigger={refreshTrigger} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="locations">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Справочник локаций</CardTitle>
+                    <CardDescription>
+                      Добавьте локации для автоматического распознавания в постах
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <LocationForm onLocationAdded={handleLocationAdded} />
+                    <LocationList refreshTrigger={refreshTrigger} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <TrainingsList refreshTrigger={refreshTrigger} />
+          )}
+        </div>
+      </div>
+      <Footer />
     </div>
   );
 };
