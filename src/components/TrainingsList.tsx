@@ -54,6 +54,9 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   
   // Coaches list for filter (extracted from trainings)
   const [coaches, setCoaches] = useState<string[]>([]);
+  
+  // Levels list for filter (extracted from trainings)
+  const [levels, setLevels] = useState<string[]>([]);
 
   const fetchChannels = async () => {
     const { data } = await supabase.from("channels").select("id, name").order("name");
@@ -96,11 +99,14 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       
       // Extract unique coaches from all trainings for the filter
       const uniqueCoaches = new Set<string>();
+      const uniqueLevels = new Set<string>();
       (data || []).forEach(training => {
         const coach = training.coach || training.channels?.default_coach;
         if (coach) uniqueCoaches.add(coach);
+        if (training.level) uniqueLevels.add(training.level);
       });
       setCoaches(Array.from(uniqueCoaches).sort((a, b) => a.localeCompare(b, 'ru')));
+      setLevels(Array.from(uniqueLevels).sort((a, b) => a.localeCompare(b, 'ru')));
     }
     setLoading(false);
   };
@@ -257,9 +263,11 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все уровни</SelectItem>
-                <SelectItem value="Начинающий">Начинающий</SelectItem>
-                <SelectItem value="Средний">Средний</SelectItem>
-                <SelectItem value="Продвинутый">Продвинутый</SelectItem>
+                {levels.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
