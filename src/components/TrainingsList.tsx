@@ -23,6 +23,7 @@ interface Training {
   location: string | null;
   description: string | null;
   raw_text: string;
+  spots: number | null;
   channels?: { name: string; default_coach: string | null };
 }
 
@@ -353,9 +354,14 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                     </TableCell>
                     <TableCell>
                       {training.type ? (
-                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                          {training.type}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                            {training.type}
+                          </span>
+                          {training.spots && (
+                            <span className="text-xs text-muted-foreground">{training.spots} мест</span>
+                          )}
+                        </div>
                       ) : "—"}
                     </TableCell>
                     <TableCell>{training.coach || training.channels?.default_coach || "—"}</TableCell>

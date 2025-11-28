@@ -34,6 +34,7 @@ interface ParsedTraining {
   description: string | null
   raw_text: string
   message_id: string
+  spots: number | null
 }
 
 interface ImageScheduleTraining {
@@ -351,6 +352,14 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: found training type = ${type}`)
   }
   
+  // Извлекаем количество мест (например "16 мест", "12 мест")
+  let spots: number | null = null
+  const spotsMatch = text.match(/(\d+)\s*мест/i)
+  if (spotsMatch) {
+    spots = parseInt(spotsMatch[1])
+    console.log(`Message ${messageId}: found spots = ${spots}`)
+  }
+  
   const result: ParsedTraining = {
     title,
     date,
@@ -364,10 +373,11 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     location_id: location_id || null,
     description: lines.slice(1, 3).join(' ') || null,
     raw_text: text,
-    message_id: messageId
+    message_id: messageId,
+    spots
   }
   
-  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}, type=${type}, location=${location}`)
+  console.log(`Message ${messageId}: PARSED - date=${date}, time=${time_start}-${time_end}, price=${price}, level=${level}, type=${type}, location=${location}, spots=${spots}`)
   
   return result
 }
