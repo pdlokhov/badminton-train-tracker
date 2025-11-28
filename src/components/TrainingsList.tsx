@@ -46,6 +46,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const [dateFilter, setDateFilter] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [coachFilter, setCoachFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
   
@@ -57,6 +58,9 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   
   // Levels list for filter (extracted from trainings)
   const [levels, setLevels] = useState<string[]>([]);
+  
+  // Types list for filter (extracted from trainings)
+  const [types, setTypes] = useState<string[]>([]);
 
   const fetchChannels = async () => {
     const { data } = await supabase.from("channels").select("id, name").order("name");
@@ -83,6 +87,9 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     if (levelFilter && levelFilter !== "all") {
       query = query.eq("level", levelFilter);
     }
+    if (typeFilter && typeFilter !== "all") {
+      query = query.eq("type", typeFilter);
+    }
     if (locationFilter) {
       query = query.ilike("location", `%${locationFilter}%`);
     }
@@ -97,23 +104,26 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     } else {
       setTrainings(data || []);
       
-      // Extract unique coaches from all trainings for the filter
+      // Extract unique coaches, levels, types from all trainings for the filter
       const uniqueCoaches = new Set<string>();
       const uniqueLevels = new Set<string>();
+      const uniqueTypes = new Set<string>();
       (data || []).forEach(training => {
         const coach = training.coach || training.channels?.default_coach;
         if (coach) uniqueCoaches.add(coach);
         if (training.level) uniqueLevels.add(training.level);
+        if (training.type) uniqueTypes.add(training.type);
       });
       setCoaches(Array.from(uniqueCoaches).sort((a, b) => a.localeCompare(b, 'ru')));
       setLevels(Array.from(uniqueLevels).sort((a, b) => a.localeCompare(b, 'ru')));
+      setTypes(Array.from(uniqueTypes).sort((a, b) => a.localeCompare(b, 'ru')));
     }
     setLoading(false);
   };
 
   useEffect(() => {
     fetchTrainings();
-  }, [refreshTrigger, dateFilter, coachFilter, levelFilter, locationFilter, channelFilter]);
+  }, [refreshTrigger, dateFilter, coachFilter, levelFilter, typeFilter, locationFilter, channelFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -196,6 +206,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     setDateFilter(format(new Date(), "yyyy-MM-dd"));
     setCoachFilter("all");
     setLevelFilter("all");
+    setTypeFilter("all");
     setLocationFilter("");
     setChannelFilter("all");
   };
@@ -266,6 +277,22 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
                 {levels.map((level) => (
                   <SelectItem key={level} value={level}>
                     {level}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Тип</label>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Все типы" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все типы</SelectItem>
+                {types.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
                   </SelectItem>
                 ))}
               </SelectContent>
