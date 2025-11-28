@@ -17,6 +17,7 @@ export type Database = {
       channels: {
         Row: {
           created_at: string
+          default_coach: string | null
           id: string
           is_active: boolean
           name: string
@@ -27,6 +28,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_coach?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -37,6 +39,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_coach?: string | null
           id?: string
           is_active?: boolean
           name?: string
