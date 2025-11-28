@@ -74,6 +74,41 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_images: {
+        Row: {
+          channel_id: string
+          id: string
+          image_url: string
+          message_id: string
+          processed_at: string
+          trainings_count: number | null
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          image_url: string
+          message_id: string
+          processed_at?: string
+          trainings_count?: number | null
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          image_url?: string
+          message_id?: string
+          processed_at?: string
+          trainings_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processed_images_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trainings: {
         Row: {
           channel_id: string
