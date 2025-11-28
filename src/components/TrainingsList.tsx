@@ -63,14 +63,12 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const fetchTrainings = async () => {
     setLoading(true);
     
-    const now = new Date();
-    const currentTime = format(now, "HH:mm:ss");
-    const filterDate = dateFilter || format(now, "yyyy-MM-dd");
+    const filterDate = dateFilter || format(new Date(), "yyyy-MM-dd");
     
     let query = supabase
       .from("trainings")
       .select("*, channels(name)")
-      .or(`date.gt.${filterDate},and(date.eq.${filterDate},time_start.gte.${currentTime})`)
+      .gte("date", filterDate)
       .order("date", { ascending: true, nullsFirst: false })
       .order("time_start", { ascending: true, nullsFirst: false });
     if (coachFilter) {
