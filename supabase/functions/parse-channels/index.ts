@@ -694,6 +694,7 @@ Deno.serve(async (req) => {
     let totalParsed = 0
     let totalAdded = 0
     let totalSkipped = 0
+    let totalFromCache = 0
 
     for (const channel of channels as Channel[]) {
       console.log(`\n=== Processing channel: ${channel.name} (@${channel.username}) ===`)
@@ -707,10 +708,33 @@ Deno.serve(async (req) => {
         for (const img of images) {
           console.log(`\nProcessing image from message ${img.messageId}`)
           
+          // Проверяем, было ли изображение уже обработано
+          const { data: existingRecord } = await supabase
+            .from('processed_images')
+            .select('id, trainings_count')
+            .eq('channel_id', channel.id)
+            .eq('message_id', img.messageId)
+            .single()
+          
+          if (existingRecord) {
+            console.log(`Image ${img.messageId} already processed (${existingRecord.trainings_count} trainings), skipping AI analysis`)
+            totalFromCache++
+            continue
+          }
+          
           const scheduleResult = await analyzeScheduleImage(img.imageUrl)
           
           if (!scheduleResult || !scheduleResult.trainings || scheduleResult.trainings.length === 0) {
             console.log(`No trainings found in image ${img.messageId}`)
+            // Сохраняем запись даже если тренировок не найдено, чтобы не повторять анализ
+            await supabase
+              .from('processed_images')
+              .insert({
+                channel_id: channel.id,
+                message_id: img.messageId,
+                image_url: img.imageUrl,
+                trainings_count: 0
+              })
             totalSkipped++
             continue
           }
@@ -724,6 +748,8 @@ Deno.serve(async (req) => {
           const currentYear = now.getFullYear()
           const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1
           const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear
+          
+          let trainingsAddedFromImage = 0
           
           for (const training of scheduleResult.trainings) {
             // Получаем все даты для этого дня недели в текущем и следующем месяце
@@ -742,7 +768,7 @@ Deno.serve(async (req) => {
                 time_start: training.time_start,
                 time_end: training.time_end || null,
                 type: parseTrainingType(training.type || ''),
-                level: training.level || null, // Сохраняем как есть, без нормализации
+                level: training.level || null,
                 location: locationResult?.name || null,
                 location_id: locationResult?.id || null,
                 raw_text: JSON.stringify(training),
@@ -762,8 +788,25 @@ Deno.serve(async (req) => {
                 totalSkipped++
               } else {
                 totalAdded++
+                trainingsAddedFromImage++
               }
             }
+          }
+          
+          // Сохраняем запись об обработанном изображении
+          const { error: insertError } = await supabase
+            .from('processed_images')
+            .insert({
+              channel_id: channel.id,
+              message_id: img.messageId,
+              image_url: img.imageUrl,
+              trainings_count: trainingsAddedFromImage
+            })
+          
+          if (insertError) {
+            console.error(`Error saving processed image record:`, insertError)
+          } else {
+            console.log(`Saved processed image record for message ${img.messageId} (${trainingsAddedFromImage} trainings)`)
           }
         }
       } else {
@@ -803,6 +846,7 @@ Deno.serve(async (req) => {
     console.log(`\n=== Parsing complete ===`)
     console.log(`Total messages/images processed: ${totalParsed}`)
     console.log(`Successfully added/updated: ${totalAdded}`)
+    console.log(`Skipped from cache (already processed): ${totalFromCache}`)
     console.log(`Skipped/errors: ${totalSkipped}`)
 
     return new Response(
@@ -811,7 +855,8 @@ Deno.serve(async (req) => {
         message: `Обработано ${channels.length} каналов`,
         parsed: totalParsed,
         added: totalAdded,
-        skipped: totalSkipped
+        skipped: totalSkipped,
+        fromCache: totalFromCache
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
