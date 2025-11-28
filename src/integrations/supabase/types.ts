@@ -126,6 +126,7 @@ export type Database = {
           message_id: string
           price: number | null
           raw_text: string
+          spots: number | null
           time_end: string | null
           time_start: string | null
           title: string | null
@@ -145,6 +146,7 @@ export type Database = {
           message_id: string
           price?: number | null
           raw_text: string
+          spots?: number | null
           time_end?: string | null
           time_start?: string | null
           title?: string | null
@@ -164,6 +166,7 @@ export type Database = {
           message_id?: string
           price?: number | null
           raw_text?: string
+          spots?: number | null
           time_end?: string | null
           time_start?: string | null
           title?: string | null
