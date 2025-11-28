@@ -258,10 +258,20 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   
   // 2. Ищем буквенный уровень: "уровень D-E", "level C", "ур. B-C", или просто "D-E" рядом с контекстом
   if (!level) {
-    const letterLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
-    if (letterLevelMatch) {
-      level = normalizeLevel(letterLevelMatch[1])
-      console.log(`Message ${messageId}: found letter level from context = ${level}`)
+    // Сначала проверяем формат "X и выше" или "X+"
+    const levelAndAboveMatch = text.match(/(?:уровень|level|ур\.?)\s*:?\s*([A-FА-Е])\s*(?:и\s*выше|\+)/i)
+    if (levelAndAboveMatch) {
+      level = normalizeLevel(levelAndAboveMatch[1]) + ' и выше'
+      console.log(`Message ${messageId}: found level "X и выше" = ${level}`)
+    }
+    
+    // Затем обычный буквенный уровень
+    if (!level) {
+      const letterLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*:?\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
+      if (letterLevelMatch) {
+        level = normalizeLevel(letterLevelMatch[1])
+        console.log(`Message ${messageId}: found letter level from context = ${level}`)
+      }
     }
   }
   
