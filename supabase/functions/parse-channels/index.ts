@@ -197,18 +197,35 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: extracted date = ${date}`)
   }
   
-  // ШАГ 3: Извлекаем время - ТОЛЬКО формат с двоеточием HH:MM
+  // ШАГ 3: Извлекаем время
   let time_start: string | null = null
   let time_end: string | null = null
   
-  // Сначала пробуем найти диапазон времени
+  // 1. Сначала пробуем найти диапазон времени с двоеточием: "21:00-23:00"
   const timeRangeMatch = text.match(/(\d{1,2}:\d{2})\s*[-–—до]\s*(\d{1,2}:\d{2})/)
   if (timeRangeMatch) {
     time_start = timeRangeMatch[1]
     time_end = timeRangeMatch[2]
-    console.log(`Message ${messageId}: time range = ${time_start} - ${time_end}`)
-  } else {
-    // Ищем отдельные времена (только с двоеточием!)
+    console.log(`Message ${messageId}: time range with colon = ${time_start} - ${time_end}`)
+  }
+  
+  // 2. Если не нашли, ищем формат "с X до Y" (часы без минут): "с 21 до 23"
+  if (!time_start) {
+    const timeHoursOnlyMatch = text.match(/с\s*(\d{1,2})\s*до\s*(\d{1,2})/i)
+    if (timeHoursOnlyMatch) {
+      const startHour = parseInt(timeHoursOnlyMatch[1])
+      const endHour = parseInt(timeHoursOnlyMatch[2])
+      // Проверяем что это валидные часы (0-23)
+      if (startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 23) {
+        time_start = startHour.toString().padStart(2, '0') + ':00'
+        time_end = endHour.toString().padStart(2, '0') + ':00'
+        console.log(`Message ${messageId}: time hours only = ${time_start} - ${time_end}`)
+      }
+    }
+  }
+  
+  // 3. Если всё ещё не нашли, ищем отдельные времена с двоеточием
+  if (!time_start) {
     const timeRegex = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g
     const timeMatches = text.match(timeRegex)
     
