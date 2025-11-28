@@ -234,17 +234,37 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   const priceMatch = text.match(/(\d+)\s*(руб|₽|rub|р\.?)/i) || text.match(/(₽|руб|rub)\s*(\d+)/i)
   const price = priceMatch ? parseInt(priceMatch[1] || priceMatch[2]) : null
   
-  // Извлекаем уровень (приоритет: буквенный → "все уровни" → текстовый)
+  // Извлекаем уровень (приоритет: числовой → буквенный → "все уровни" → текстовый)
   let level: string | null = null
   
-  // 1. Ищем буквенный уровень: "уровень D-E", "level C", "ур. B-C", или просто "D-E" рядом с контекстом
-  const letterLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
-  if (letterLevelMatch) {
-    level = normalizeLevel(letterLevelMatch[1])
-    console.log(`Message ${messageId}: found letter level from context = ${level}`)
+  // 1. Ищем числовой уровень: "1.0", "2.0", "3.0", "4.0", "1.5", "2.5" и диапазоны "1.0-2.0", "2.0/3.0"
+  const numericLevelRangeMatch = text.match(/\b([1-5][.,][05])\s*[-–—\/]\s*([1-5][.,][05])\b/)
+  if (numericLevelRangeMatch) {
+    const lvl1 = numericLevelRangeMatch[1].replace(',', '.')
+    const lvl2 = numericLevelRangeMatch[2].replace(',', '.')
+    level = `${lvl1}-${lvl2}`
+    console.log(`Message ${messageId}: found numeric level range = ${level}`)
   }
   
-  // 2. Ищем буквы уровня в формате "D-E", "C/D", "EC", "ED" без явного слова "уровень"
+  // Одиночный числовой уровень
+  if (!level) {
+    const numericLevelMatch = text.match(/(?:уровень|level|ур\.?|lvl)?\s*\b([1-5][.,][05])\b/i)
+    if (numericLevelMatch) {
+      level = numericLevelMatch[1].replace(',', '.')
+      console.log(`Message ${messageId}: found numeric level = ${level}`)
+    }
+  }
+  
+  // 2. Ищем буквенный уровень: "уровень D-E", "level C", "ур. B-C", или просто "D-E" рядом с контекстом
+  if (!level) {
+    const letterLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
+    if (letterLevelMatch) {
+      level = normalizeLevel(letterLevelMatch[1])
+      console.log(`Message ${messageId}: found letter level from context = ${level}`)
+    }
+  }
+  
+  // 3. Ищем буквы уровня в формате "D-E", "C/D", "EC", "ED" без явного слова "уровень"
   if (!level) {
     // Сначала проверяем двухбуквенные комбинации без разделителя (EC, ED и т.д.)
     const twoLetterMatch = text.match(/\b([A-FА-Е]{2})\b/i)
@@ -265,13 +285,13 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
-  // 3. Проверяем "ВСЕ УРОВНИ"
+  // 4. Проверяем "ВСЕ УРОВНИ"
   if (!level && /все\s*уровни|all\s*levels/i.test(text)) {
     level = 'Все уровни'
     console.log(`Message ${messageId}: found "все уровни"`)
   }
   
-  // 4. Ищем уровень в контексте "НОВИЧКИ E-F"
+  // 5. Ищем уровень в контексте "НОВИЧКИ E-F"
   if (!level) {
     const noviceMatch = text.match(/(?:новичк[иа]?|начинающ[ие]+)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
     if (noviceMatch) {
@@ -280,7 +300,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
-  // 5. Fallback на текстовые описания
+  // 6. Fallback на текстовые описания
   if (!level) {
     if (/начин|beginner|новичк/i.test(text)) {
       level = 'Начинающий'
