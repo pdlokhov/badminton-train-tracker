@@ -6,13 +6,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
+import { channelSchema } from "@/lib/validations";
 
 interface ChannelFormProps {
   onChannelAdded: () => void;
 }
 
 const extractUsername = (url: string): string | null => {
-  // Поддержка форматов: https://t.me/channel, t.me/channel, @channel
   const patterns = [
     /^https?:\/\/t\.me\/([a-zA-Z0-9_]+)\/?$/,
     /^t\.me\/([a-zA-Z0-9_]+)\/?$/,
@@ -43,20 +43,29 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const username = extractUsername(url);
-    if (!username) {
+    // Validate with zod schema
+    const validation = channelSchema.safeParse({
+      name,
+      url,
+      defaultCoach,
+      parseImages,
+    });
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
       toast({
-        title: "Ошибка",
-        description: "Неверный формат ссылки. Используйте: https://t.me/channel или @channel",
+        title: "Ошибка валидации",
+        description: firstError.message,
         variant: "destructive",
       });
       return;
     }
 
-    if (!name.trim()) {
+    const username = extractUsername(url);
+    if (!username) {
       toast({
         title: "Ошибка",
-        description: "Введите название клуба",
+        description: "Неверный формат ссылки. Используйте: https://t.me/channel или @channel",
         variant: "destructive",
       });
       return;
@@ -80,6 +89,12 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
           toast({
             title: "Ошибка",
             description: "Этот клуб уже добавлен",
+            variant: "destructive",
+          });
+        } else if (error.code === "42501") {
+          toast({
+            title: "Ошибка доступа",
+            description: "У вас нет прав для добавления клубов",
             variant: "destructive",
           });
         } else {

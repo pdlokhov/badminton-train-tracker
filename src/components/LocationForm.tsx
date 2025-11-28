@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
+import { locationSchema } from "@/lib/validations";
 
 interface LocationFormProps {
   onLocationAdded: () => void;
@@ -20,10 +21,18 @@ export const LocationForm = ({ onLocationAdded }: LocationFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim()) {
+    // Validate with zod schema
+    const validation = locationSchema.safeParse({
+      name,
+      address,
+      aliases,
+    });
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
       toast({
-        title: "Ошибка",
-        description: "Введите название локации",
+        title: "Ошибка валидации",
+        description: firstError.message,
         variant: "destructive",
       });
       return;
@@ -42,7 +51,18 @@ export const LocationForm = ({ onLocationAdded }: LocationFormProps) => {
         aliases: aliasesArray.length > 0 ? aliasesArray : [],
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === "42501") {
+          toast({
+            title: "Ошибка доступа",
+            description: "У вас нет прав для добавления локаций",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast({
         title: "Локация добавлена",
@@ -75,6 +95,7 @@ export const LocationForm = ({ onLocationAdded }: LocationFormProps) => {
             placeholder="Цех №1"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            maxLength={100}
           />
         </div>
         <div className="space-y-2">
@@ -84,6 +105,7 @@ export const LocationForm = ({ onLocationAdded }: LocationFormProps) => {
             placeholder="Оптиков 4"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+            maxLength={255}
           />
         </div>
         <div className="space-y-2">
@@ -93,6 +115,7 @@ export const LocationForm = ({ onLocationAdded }: LocationFormProps) => {
             placeholder="Цех, Цех1"
             value={aliases}
             onChange={(e) => setAliases(e.target.value)}
+            maxLength={500}
           />
         </div>
       </div>
