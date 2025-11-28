@@ -299,8 +299,23 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   }
   
   // Извлекаем тренера
-  const coachMatch = text.match(/(?:тренер|coach|ведущ[ий|ая])[:\s]+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
-  const coach = coachMatch ? coachMatch[1] : null
+  let coach: string | null = null
+
+  // Паттерн 1: После слова "тренер", "coach", "ведущий/ведущая"
+  const coachMatch1 = text.match(/(?:тренер|coach|ведущ[ий|ая])[:\s]+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
+  if (coachMatch1) {
+    coach = coachMatch1[1]
+    console.log(`Message ${messageId}: found coach by keyword = ${coach}`)
+  }
+
+  // Паттерн 2: Формат "DD.MM | HH:MM – HH:MM | ИмяТренера" (канал "бадминтон прост")
+  if (!coach) {
+    const coachMatch2 = text.match(/\d{1,2}\.\d{1,2}\s*\|\s*\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}\s*\|\s*([А-ЯЁA-Z][а-яёa-z]+)/i)
+    if (coachMatch2) {
+      coach = coachMatch2[1]
+      console.log(`Message ${messageId}: found coach by pipe format = ${coach}`)
+    }
+  }
   
   // ШАГ 5: Извлекаем локацию из справочника
   const locationResult = findLocation(text, knownLocations)
