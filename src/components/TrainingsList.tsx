@@ -68,8 +68,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     let query = supabase
       .from("trainings")
       .select("*, channels(name)")
-      .gte("date", filterDate)
-      .order("date", { ascending: true, nullsFirst: false })
+      .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
     if (coachFilter) {
       query = query.ilike("coach", `%${coachFilter}%`);
