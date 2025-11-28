@@ -352,12 +352,30 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: found training type = ${type}`)
   }
   
-  // Извлекаем количество мест (например "16 мест", "12 мест", "5 чел.")
+  // Извлекаем количество мест с приоритетом и выбором большего значения
   let spots: number | null = null
-  const spotsMatch = text.match(/(\d+)\s*(?:мест|чел\.?)/i)
-  if (spotsMatch) {
-    spots = parseInt(spotsMatch[1])
-    console.log(`Message ${messageId}: found spots = ${spots}`)
+  
+  // Шаг 1: Ищем все упоминания "X чел." (приоритет 1)
+  const chelMatches = text.matchAll(/(\d+)\s*чел\.?/gi)
+  const chelNumbers = Array.from(chelMatches, m => parseInt(m[1]))
+  
+  if (chelNumbers.length > 0) {
+    // Если нашли "чел.", берем максимальное значение
+    spots = Math.max(...chelNumbers)
+    console.log(`Message ${messageId}: found ${chelNumbers.length} "чел." values: ${chelNumbers.join(', ')}, taking max = ${spots}`)
+  } else {
+    // Шаг 2: Если "чел." не нашли, ищем все "X мест" (приоритет 2)
+    const mestMatches = text.matchAll(/(\d+)\s*мест/gi)
+    const mestNumbers = Array.from(mestMatches, m => parseInt(m[1]))
+    
+    if (mestNumbers.length > 0) {
+      spots = Math.max(...mestNumbers)
+      console.log(`Message ${messageId}: found ${mestNumbers.length} "мест" values: ${mestNumbers.join(', ')}, taking max = ${spots}`)
+    }
+  }
+  
+  if (spots) {
+    console.log(`Message ${messageId}: final spots = ${spots}`)
   }
   
   const result: ParsedTraining = {
