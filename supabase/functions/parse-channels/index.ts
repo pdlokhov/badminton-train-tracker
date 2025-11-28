@@ -352,9 +352,9 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: found training type = ${type}`)
   }
   
-  // Извлекаем количество мест (например "16 мест", "12 мест")
+  // Извлекаем количество мест (например "16 мест", "12 мест", "5 чел.")
   let spots: number | null = null
-  const spotsMatch = text.match(/(\d+)\s*мест/i)
+  const spotsMatch = text.match(/(\d+)\s*(?:мест|чел\.?)/i)
   if (spotsMatch) {
     spots = parseInt(spotsMatch[1])
     console.log(`Message ${messageId}: found spots = ${spots}`)
