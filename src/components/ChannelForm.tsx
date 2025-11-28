@@ -55,7 +55,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
     if (!name.trim()) {
       toast({
         title: "Ошибка",
-        description: "Введите название канала",
+        description: "Введите название клуба",
         variant: "destructive",
       });
       return;
@@ -77,7 +77,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         if (error.code === "23505") {
           toast({
             title: "Ошибка",
-            description: "Этот канал уже добавлен",
+            description: "Этот клуб уже добавлен",
             variant: "destructive",
           });
         } else {
@@ -88,7 +88,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
 
       toast({
         title: "Успешно",
-        description: `Канал "${name}" добавлен`,
+        description: `Клуб "${name}" добавлен`,
       });
 
       setUrl("");
@@ -99,7 +99,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       console.error("Error adding channel:", error);
       toast({
         title: "Ошибка",
-        description: "Не удалось добавить канал",
+        description: "Не удалось добавить клуб",
         variant: "destructive",
       });
     } finally {
@@ -111,7 +111,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Название канала</Label>
+          <Label htmlFor="name">Название клуба</Label>
           <Input
             id="name"
             placeholder="LB Club Badminton"
@@ -121,7 +121,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="url">Ссылка на канал</Label>
+          <Label htmlFor="url">Ссылка на клуб</Label>
           <Input
             id="url"
             placeholder="https://t.me/lb_club_badminton"
@@ -143,7 +143,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       </div>
       <Button type="submit" disabled={isLoading}>
         <Plus className="mr-2 h-4 w-4" />
-        {isLoading ? "Добавление..." : "Добавить канал"}
+        {isLoading ? "Добавление..." : "Добавить клуб"}
       </Button>
     </form>
   );

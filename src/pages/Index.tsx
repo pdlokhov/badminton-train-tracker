@@ -79,9 +79,9 @@ const Index = () => {
           <TabsContent value="channels">
             <Card>
               <CardHeader>
-                <CardTitle>Telegram каналы</CardTitle>
+                <CardTitle>Клубы</CardTitle>
                 <CardDescription>
-                  Добавьте каналы с расписанием тренировок для парсинга
+                  Добавьте клубы с расписанием тренировок для парсинга
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

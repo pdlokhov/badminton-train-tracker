@@ -257,13 +257,13 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Канал</label>
+            <label className="text-xs font-medium text-muted-foreground">Клуб</label>
             <Select value={channelFilter} onValueChange={setChannelFilter}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Все каналы" />
+                <SelectValue placeholder="Все клубы" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Все каналы</SelectItem>
+                <SelectItem value="all">Все клубы</SelectItem>
                 {channels.map((channel) => (
                   <SelectItem key={channel.id} value={channel.id}>
                     {channel.name}
@@ -288,7 +288,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
           <div className="flex h-32 flex-col items-center justify-center text-muted-foreground">
             <Calendar className="mb-2 h-8 w-8" />
             <p>Нет данных о тренировках</p>
-            <p className="text-sm">Добавьте каналы и нажмите "Обновить расписание"</p>
+            <p className="text-sm">Добавьте клубы и нажмите "Обновить расписание"</p>
           </div>
         ) : (
           <div className="rounded-md border">
