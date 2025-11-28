@@ -44,13 +44,16 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   
   // Filters
   const [dateFilter, setDateFilter] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [coachFilter, setCoachFilter] = useState("");
+  const [coachFilter, setCoachFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
   
   // Channels list for filter
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
+  
+  // Coaches list for filter (extracted from trainings)
+  const [coaches, setCoaches] = useState<string[]>([]);
 
   const fetchChannels = async () => {
     const { data } = await supabase.from("channels").select("id, name").order("name");
@@ -71,8 +74,8 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       .select("*, channels(name, default_coach)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
-    if (coachFilter) {
-      query = query.ilike("coach", `%${coachFilter}%`);
+    if (coachFilter && coachFilter !== "all") {
+      query = query.eq("coach", coachFilter);
     }
     if (levelFilter && levelFilter !== "all") {
       query = query.eq("level", levelFilter);
@@ -90,6 +93,14 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       console.error("Error fetching trainings:", error);
     } else {
       setTrainings(data || []);
+      
+      // Extract unique coaches from all trainings for the filter
+      const uniqueCoaches = new Set<string>();
+      (data || []).forEach(training => {
+        const coach = training.coach || training.channels?.default_coach;
+        if (coach) uniqueCoaches.add(coach);
+      });
+      setCoaches(Array.from(uniqueCoaches).sort((a, b) => a.localeCompare(b, 'ru')));
     }
     setLoading(false);
   };
@@ -177,7 +188,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
 
   const clearFilters = () => {
     setDateFilter(format(new Date(), "yyyy-MM-dd"));
-    setCoachFilter("");
+    setCoachFilter("all");
     setLevelFilter("all");
     setLocationFilter("");
     setChannelFilter("all");
@@ -224,12 +235,19 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Тренер</label>
-            <Input
-              placeholder="Поиск по тренеру"
-              value={coachFilter}
-              onChange={(e) => setCoachFilter(e.target.value)}
-              className="h-9"
-            />
+            <Select value={coachFilter} onValueChange={setCoachFilter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Все тренеры" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все тренеры</SelectItem>
+                {coaches.map((coach) => (
+                  <SelectItem key={coach} value={coach}>
+                    {coach}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Уровень</label>
