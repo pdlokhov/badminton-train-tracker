@@ -47,8 +47,19 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const [coachFilter, setCoachFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("");
-  const [priceFrom, setPriceFrom] = useState("");
-  const [priceTo, setPriceTo] = useState("");
+  const [channelFilter, setChannelFilter] = useState("all");
+  
+  // Channels list for filter
+  const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
+
+  const fetchChannels = async () => {
+    const { data } = await supabase.from("channels").select("id, name").order("name");
+    setChannels(data || []);
+  };
+
+  useEffect(() => {
+    fetchChannels();
+  }, []);
 
   const fetchTrainings = async () => {
     setLoading(true);
@@ -76,11 +87,8 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     if (locationFilter) {
       query = query.ilike("location", `%${locationFilter}%`);
     }
-    if (priceFrom) {
-      query = query.gte("price", parseFloat(priceFrom));
-    }
-    if (priceTo) {
-      query = query.lte("price", parseFloat(priceTo));
+    if (channelFilter && channelFilter !== "all") {
+      query = query.eq("channel_id", channelFilter);
     }
 
     const { data, error } = await query;
@@ -95,7 +103,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
 
   useEffect(() => {
     fetchTrainings();
-  }, [refreshTrigger, dateFrom, dateTo, coachFilter, levelFilter, locationFilter, priceFrom, priceTo]);
+  }, [refreshTrigger, dateFrom, dateTo, coachFilter, levelFilter, locationFilter, channelFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -180,8 +188,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     setCoachFilter("");
     setLevelFilter("all");
     setLocationFilter("");
-    setPriceFrom("");
-    setPriceTo("");
+    setChannelFilter("all");
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -265,24 +272,20 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Цена от</label>
-            <Input
-              type="number"
-              placeholder="₽"
-              value={priceFrom}
-              onChange={(e) => setPriceFrom(e.target.value)}
-              className="h-9"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Цена до</label>
-            <Input
-              type="number"
-              placeholder="₽"
-              value={priceTo}
-              onChange={(e) => setPriceTo(e.target.value)}
-              className="h-9"
-            />
+            <label className="text-xs font-medium text-muted-foreground">Канал</label>
+            <Select value={channelFilter} onValueChange={setChannelFilter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Все каналы" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все каналы</SelectItem>
+                {channels.map((channel) => (
+                  <SelectItem key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-end">
             <Button variant="outline" onClick={clearFilters} className="h-9 w-full">
