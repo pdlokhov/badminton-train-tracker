@@ -9,6 +9,7 @@ import { SortDropdown, SortOption } from "./SortDropdown";
 import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
 import { FilterChips } from "./FilterChips";
+import { DatePicker } from "./DatePicker";
 import { Calendar } from "lucide-react";
 
 interface Training {
@@ -41,11 +42,14 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   
   // Search and filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [coachFilter, setCoachFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState("all");
+  
+  // Derived date filter string for API
+  const dateFilter = format(selectedDate, "yyyy-MM-dd");
   
   // Sort
   const [sortOption, setSortOption] = useState<SortOption>("time");
@@ -249,11 +253,13 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
         <FilterChips chips={filterChips} onChipClick={handleChipClick} />
       )}
 
-      {/* Header with count and sort */}
+      {/* Header with date picker, count and sort */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">
-          {formatDateDisplay(dateFilter)} • {sortedTrainings.length} тренировок
-        </h2>
+        <div className="flex items-center gap-2">
+          <DatePicker date={selectedDate} onDateChange={setSelectedDate} />
+          <span className="text-muted-foreground">•</span>
+          <span className="text-base text-muted-foreground">{sortedTrainings.length} тренировок</span>
+        </div>
         <SortDropdown value={sortOption} onChange={setSortOption} />
       </div>
 
