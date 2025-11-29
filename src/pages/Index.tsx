@@ -7,17 +7,29 @@ import { ChannelList } from "@/components/ChannelList";
 import { LocationForm } from "@/components/LocationForm";
 import { LocationList } from "@/components/LocationList";
 import { TrainingsList } from "@/components/TrainingsList";
+import { Header } from "@/components/Header";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 const Index = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isParsing, setIsParsing] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState("schedule");
   const { toast } = useToast();
   const { isAdmin, isLoading } = useAuth();
+  const isMobile = useIsMobile();
 
   const handleChannelAdded = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -67,21 +79,23 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex-1 p-4 md:p-8">
+      <Header onMenuClick={() => setAdminMenuOpen(true)} />
+      
+      <main className="flex-1 px-4 pb-24 md:px-6 md:pb-8">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-3xl font-bold">Расписание тренировок</h1>
-            {isAdmin && (
-              <Button onClick={handleParse} disabled={isParsing}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
-                {isParsing ? "Парсинг..." : "Обновить расписание"}
-              </Button>
-            )}
+          {/* Hero Section */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-foreground md:text-4xl">
+              Тренировки сегодня в СПБ
+            </h1>
+            <p className="mt-1 text-muted-foreground">
+              Собираем расписание из Telegram-каналов и площадок.
+            </p>
           </div>
           
           {isAdmin ? (
             <Tabs defaultValue="schedule" className="space-y-4">
-              <TabsList>
+              <TabsList className="bg-muted">
                 <TabsTrigger value="schedule">Расписание</TabsTrigger>
                 <TabsTrigger value="channels">Каналы</TabsTrigger>
                 <TabsTrigger value="locations">Локации</TabsTrigger>
@@ -125,8 +139,38 @@ const Index = () => {
             <TrainingsList refreshTrigger={refreshTrigger} />
           )}
         </div>
-      </div>
-      <Footer />
+      </main>
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && !isAdmin && (
+        <MobileBottomNav activeTab={mobileTab} onTabChange={setMobileTab} />
+      )}
+
+      {/* Admin Sheet Menu */}
+      {isAdmin && (
+        <Sheet open={adminMenuOpen} onOpenChange={setAdminMenuOpen}>
+          <SheetContent className="bg-background">
+            <SheetHeader>
+              <SheetTitle>Меню администратора</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-4">
+              <Button
+                onClick={() => {
+                  handleParse();
+                  setAdminMenuOpen(false);
+                }}
+                disabled={isParsing}
+                className="w-full"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
+                {isParsing ? "Парсинг..." : "Обновить расписание"}
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+
+      {!isMobile && <Footer />}
     </div>
   );
 };
