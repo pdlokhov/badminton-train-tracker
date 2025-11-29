@@ -116,18 +116,39 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     fetchTrainings();
   }, [refreshTrigger, dateFilter, coachFilter, levelFilter, typeFilter, channelFilter]);
 
-  // Filter by search query
+  // Filter out past trainings (for today only) and by search query
   const filteredTrainings = useMemo(() => {
-    if (!searchQuery.trim()) return trainings;
+    const now = new Date();
+    const currentDate = format(now, "yyyy-MM-dd");
+    const currentTime = format(now, "HH:mm");
     
-    const query = searchQuery.toLowerCase();
-    return trainings.filter(t => 
-      t.type?.toLowerCase().includes(query) ||
-      t.location?.toLowerCase().includes(query) ||
-      t.channels?.name?.toLowerCase().includes(query) ||
-      t.coach?.toLowerCase().includes(query)
-    );
-  }, [trainings, searchQuery]);
+    let result = trainings;
+    
+    // If viewing today, filter out past trainings
+    if (dateFilter === currentDate) {
+      result = result.filter(t => {
+        // Use time_end if available, otherwise time_start
+        const endTime = t.time_end || t.time_start;
+        if (!endTime) return true; // Show if no time info
+        // Compare time strings (HH:mm:ss or HH:mm format)
+        const compareTime = endTime.length > 5 ? endTime.substring(0, 5) : endTime;
+        return compareTime >= currentTime;
+      });
+    }
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(t => 
+        t.type?.toLowerCase().includes(query) ||
+        t.location?.toLowerCase().includes(query) ||
+        t.channels?.name?.toLowerCase().includes(query) ||
+        t.coach?.toLowerCase().includes(query)
+      );
+    }
+    
+    return result;
+  }, [trainings, searchQuery, dateFilter]);
 
   // Sort trainings
   const sortedTrainings = useMemo(() => {
