@@ -63,8 +63,13 @@ function parseTrainingType(text: string): string | null {
     return 'мини-группа'
   }
   
-  // "групповая тренировка" или "групповая"
-  if (/групповая/i.test(text)) {
+  // "детская группа"
+  if (/детск\w*\s+групп/i.test(text)) {
+    return 'детская группа'
+  }
+  
+  // "групповая тренировка" или "групповая" или "группа"
+  if (/групповая|(?<!мини[\s-]?)группа(?!\w)/i.test(text)) {
     return 'групповая'
   }
   
@@ -263,8 +268,17 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
       let price: number | null = null
       if (type === 'игровая') {
         price = gamePrice
-      } else if (type === 'групповая' || type === 'детская группа') {
+      } else if (type === 'групповая' || type === 'мини-группа' || type === 'детская группа') {
         price = groupPrice
+      }
+      
+      // Fallback: пробуем извлечь цену из блока тренировки
+      if (!price) {
+        const blockPriceMatch = block.match(/(\d+)\s*(руб|₽|rub|р\.?)/i)
+        if (blockPriceMatch) {
+          price = parseInt(blockPriceMatch[1])
+          console.log(`Extracted price from training block: ${price}`)
+        }
       }
       
       // Извлекаем уровень
