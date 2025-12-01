@@ -42,10 +42,12 @@ const Index = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  const handleParse = async () => {
+  const handleParse = async (force = false) => {
     setIsParsing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("parse-channels");
+      const { data, error } = await supabase.functions.invoke("parse-channels", {
+        body: { force }
+      });
 
       if (error) {
         throw error;
@@ -171,7 +173,7 @@ const Index = () => {
             <div className="mt-6 space-y-4">
               <Button
                 onClick={() => {
-                  handleParse();
+                  handleParse(false);
                   setAdminMenuOpen(false);
                 }}
                 disabled={isParsing}
@@ -179,6 +181,18 @@ const Index = () => {
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
                 {isParsing ? "Парсинг..." : "Обновить расписание"}
+              </Button>
+              <Button
+                onClick={() => {
+                  handleParse(true);
+                  setAdminMenuOpen(false);
+                }}
+                disabled={isParsing}
+                variant="outline"
+                className="w-full"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isParsing ? "animate-spin" : ""}`} />
+                🔄 Перепарсить всё
               </Button>
             </div>
           </SheetContent>
