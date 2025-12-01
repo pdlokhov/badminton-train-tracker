@@ -10,6 +10,8 @@ import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
 import { FilterChips } from "./FilterChips";
 import { DatePicker } from "./DatePicker";
+import { AdminFiltersBar } from "./AdminFiltersBar";
+import { AdminTrainingsTable } from "./AdminTrainingsTable";
 import { Calendar } from "lucide-react";
 
 interface Training {
@@ -41,9 +43,10 @@ interface Training {
 
 interface TrainingsListProps {
   refreshTrigger: number;
+  isAdmin?: boolean;
 }
 
-export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
+export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsListProps) {
   const isMobile = useIsMobile();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,12 +58,17 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
   const [levelFilter, setLevelFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState("all");
+  const [locationSearch, setLocationSearch] = useState("");
   
   // Derived date filter string for API
   const dateFilter = format(selectedDate, "yyyy-MM-dd");
   
   // Sort
   const [sortOption, setSortOption] = useState<SortOption>("time");
+  
+  // Admin table sorting
+  const [tableSortColumn, setTableSortColumn] = useState("time");
+  const [tableSortDirection, setTableSortDirection] = useState<"asc" | "desc">("asc");
   
   // Data for filters
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
@@ -128,7 +136,26 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     fetchTrainings();
   }, [refreshTrigger, dateFilter, coachFilter, levelFilter, typeFilter, channelFilter]);
 
-  // Filter out past trainings (for today only) and by search query
+  // Reset filters
+  const resetFilters = () => {
+    setCoachFilter("all");
+    setLevelFilter("all");
+    setTypeFilter("all");
+    setChannelFilter("all");
+    setLocationSearch("");
+  };
+
+  // Handle admin table sort
+  const handleTableSort = (column: string) => {
+    if (tableSortColumn === column) {
+      setTableSortDirection(tableSortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setTableSortColumn(column);
+      setTableSortDirection("asc");
+    }
+  };
+
+  // Filter out past trainings (for today only) and by search/location query
   const filteredTrainings = useMemo(() => {
     const now = new Date();
     const currentDate = format(now, "yyyy-MM-dd");
@@ -136,13 +163,11 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     
     let result = trainings;
     
-    // If viewing today, filter out past trainings
-    if (dateFilter === currentDate) {
+    // If viewing today and not admin, filter out past trainings
+    if (dateFilter === currentDate && !isAdmin) {
       result = result.filter(t => {
-        // Use time_end if available, otherwise time_start
         const endTime = t.time_end || t.time_start;
-        if (!endTime) return true; // Show if no time info
-        // Compare time strings (HH:mm:ss or HH:mm format)
+        if (!endTime) return true;
         const compareTime = endTime.length > 5 ? endTime.substring(0, 5) : endTime;
         return compareTime >= currentTime;
       });
@@ -158,11 +183,21 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
         t.coach?.toLowerCase().includes(query)
       );
     }
+
+    // Apply location search filter (admin only)
+    if (locationSearch.trim()) {
+      const query = locationSearch.toLowerCase();
+      result = result.filter(t => {
+        const loc = t.location_data?.name || t.location || t.channels?.default_location?.name || "";
+        const addr = t.location_data?.address || t.channels?.default_location?.address || "";
+        return loc.toLowerCase().includes(query) || addr.toLowerCase().includes(query);
+      });
+    }
     
     return result;
-  }, [trainings, searchQuery, dateFilter]);
+  }, [trainings, searchQuery, dateFilter, isAdmin, locationSearch]);
 
-  // Sort trainings
+  // Sort trainings (for user view)
   const sortedTrainings = useMemo(() => {
     return [...filteredTrainings].sort((a, b) => {
       switch (sortOption) {
@@ -177,6 +212,34 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
       }
     });
   }, [filteredTrainings, sortOption]);
+
+  // Sort trainings for admin table view
+  const adminSortedTrainings = useMemo(() => {
+    const dir = tableSortDirection === "asc" ? 1 : -1;
+    return [...filteredTrainings].sort((a, b) => {
+      switch (tableSortColumn) {
+        case "date":
+          return dir * (a.date || "").localeCompare(b.date || "");
+        case "time":
+          return dir * (a.time_start || "").localeCompare(b.time_start || "");
+        case "type":
+          return dir * (a.type || "").localeCompare(b.type || "", "ru");
+        case "coach":
+          const coachA = a.coach || a.channels?.default_coach || "";
+          const coachB = b.coach || b.channels?.default_coach || "";
+          return dir * coachA.localeCompare(coachB, "ru");
+        case "level":
+          return dir * (a.level || "").localeCompare(b.level || "", "ru");
+        case "price":
+          return dir * ((a.price ?? 9999) - (b.price ?? 9999));
+        case "club":
+          return dir * (a.channels?.name || "").localeCompare(b.channels?.name || "", "ru");
+        default:
+          return 0;
+      }
+    });
+  }, [filteredTrainings, tableSortColumn, tableSortDirection]);
+
 
   const formatDateDisplay = (dateStr: string) => {
     try {
@@ -246,6 +309,64 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     return locationAddress ? `${locationName}, ${locationAddress}` : locationName;
   };
 
+  // Prepare trainings with location display for admin table
+  const trainingsWithLocation = useMemo(() => {
+    return adminSortedTrainings.map(t => ({
+      ...t,
+      locationDisplay: getLocation(t),
+    }));
+  }, [adminSortedTrainings]);
+
+  // Admin view
+  if (isAdmin) {
+    return (
+      <div className="space-y-4">
+        {/* Admin Filters Bar */}
+        <AdminFiltersBar
+          date={selectedDate}
+          coach={coachFilter}
+          level={levelFilter}
+          type={typeFilter}
+          locationSearch={locationSearch}
+          channel={channelFilter}
+          onDateChange={setSelectedDate}
+          onCoachChange={setCoachFilter}
+          onLevelChange={setLevelFilter}
+          onTypeChange={setTypeFilter}
+          onLocationSearchChange={setLocationSearch}
+          onChannelChange={setChannelFilter}
+          onReset={resetFilters}
+          coaches={coaches}
+          levels={levels}
+          types={types}
+          channels={channels}
+        />
+
+        {/* Count */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            Найдено: {trainingsWithLocation.length} тренировок
+          </span>
+        </div>
+
+        {/* Admin Table */}
+        {loading ? (
+          <div className="flex h-32 items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <AdminTrainingsTable
+            trainings={trainingsWithLocation}
+            sortColumn={tableSortColumn}
+            sortDirection={tableSortDirection}
+            onSort={handleTableSort}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // User view
   return (
     <div className="space-y-4">
       {/* Search and Filters */}

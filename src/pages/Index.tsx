@@ -102,7 +102,7 @@ const Index = () => {
               </TabsList>
 
               <TabsContent value="schedule">
-                <TrainingsList refreshTrigger={refreshTrigger} />
+                <TrainingsList refreshTrigger={refreshTrigger} isAdmin={true} />
               </TabsContent>
 
               <TabsContent value="channels">
