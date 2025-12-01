@@ -1,16 +1,17 @@
-import { Menu, User } from "lucide-react";
+import { Menu, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
 
 interface HeaderProps {
   onMenuClick?: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const isMobile = useIsMobile();
   const { isAdmin } = useAuth();
+
+  const handleContactDeveloper = () => {
+    window.open("https://t.me/your_developer_username", "_blank");
+  };
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 bg-background md:px-6">
@@ -26,11 +27,10 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Menu className="h-6 w-6" />
           </Button>
         ) : (
-          <Link to="/admin">
-            <Button variant="ghost" size="icon">
-              <User className="h-6 w-6" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="sm" onClick={handleContactDeveloper}>
+            <MessageCircle className="h-5 w-5 mr-2" />
+            Связаться
+          </Button>
         )}
       </div>
     </header>
