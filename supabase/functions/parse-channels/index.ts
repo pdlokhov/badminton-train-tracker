@@ -64,7 +64,7 @@ function parseTrainingType(text: string): string | null {
   }
   
   // "детская группа"
-  if (/детск\w*\s+групп/i.test(text)) {
+  if (/детск[а-яё]*\s+групп/i.test(text)) {
     return 'детская группа'
   }
   
