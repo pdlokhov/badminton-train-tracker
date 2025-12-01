@@ -40,6 +40,7 @@ interface ParsedTraining {
 interface ImageScheduleTraining {
   type: string | null
   level: string | null
+  coach: string | null
   day: string
   time_start: string
   time_end: string | null
@@ -793,7 +794,8 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
   "trainings": [
     {
       "type": "тип тренировки (техника/игра/групповая/мини-игровая и т.д.)",
-      "level": "уровень ТОЧНО КАК НАПИСАНО в изображении (например: Б1-Б2, ВСЕ УРОВНИ, A-B)",
+      "level": "уровень ТОЧНО КАК НАПИСАНО в изображении (например: Б1-Б2, ВСЕ УРОВНИ, A-B, С-Е, Е-Н начинающие, Е-F)",
+      "coach": "имя тренера если указано (например: Екатерина, Егор, Александр)",
       "day": "день недели на русском в нижнем регистре (понедельник, вторник, среда...)",
       "time_start": "время начала в формате HH:MM",
       "time_end": "время окончания в формате HH:MM (если есть)"
@@ -801,11 +803,14 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
   ]
 }
 
-ВАЖНО:
-1. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
-2. Если уровень не указан, оставь null
-3. Если на изображении нет расписания тренировок, верни пустой массив trainings
-4. Локацию бери из заголовка изображения`
+КРИТИЧЕСКИ ВАЖНО:
+1. Если в ОДНО ВРЕМЯ проходит НЕСКОЛЬКО тренировок (разные типы/уровни/тренеры) - создавай ОТДЕЛЬНУЮ запись для КАЖДОЙ тренировки!
+   Например, если в 19:00-20:30 идут "Игра (С-Е)", "Группа (Е-Н) Екатерина" и "Мини-группа (Е-F) Егор" - это ТРИ разные записи!
+2. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
+3. Если уровень не указан, оставь null
+4. Если тренер не указан, оставь coach как null (например "Игра (С-Е) без тренера")
+5. Если на изображении нет расписания тренировок, верни пустой массив trainings
+6. Локацию бери из заголовка изображения`
             },
             {
               type: 'image_url',
@@ -832,6 +837,7 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
                     properties: {
                       type: { type: 'string', description: 'Тип тренировки' },
                       level: { type: 'string', description: 'Уровень как в оригинале' },
+                      coach: { type: 'string', description: 'Имя тренера' },
                       day: { type: 'string', description: 'День недели на русском' },
                       time_start: { type: 'string', description: 'Время начала HH:MM' },
                       time_end: { type: 'string', description: 'Время окончания HH:MM' }
@@ -1105,7 +1111,7 @@ Deno.serve(async (req) => {
             for (const date of allDates) {
               const trainingRecord = {
                 channel_id: channel.id,
-                message_id: `${img.messageId}_${training.day}_${training.time_start}_${date}`,
+                message_id: `${img.messageId}_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${date}`,
                 title: `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
                 date: date,
                 time_start: training.time_start,
@@ -1115,7 +1121,7 @@ Deno.serve(async (req) => {
                 location: locationResult?.name || null,
                 location_id: locationResult?.id || null,
                 raw_text: JSON.stringify(training),
-                coach: null,
+                coach: training.coach || null,
                 price: null,
                 description: scheduleResult.location || null
               }
