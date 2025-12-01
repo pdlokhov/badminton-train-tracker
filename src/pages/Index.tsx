@@ -90,9 +90,6 @@ const Index = () => {
             <h1 className="text-2xl font-bold text-foreground md:text-4xl">
               Тренировки сегодня в СПБ
             </h1>
-            <p className="mt-1 text-muted-foreground">
-              Собираем расписание из Telegram-каналов и площадок.
-            </p>
           </div>
           
           {isAdmin ? (
