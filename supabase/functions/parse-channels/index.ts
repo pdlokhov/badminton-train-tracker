@@ -261,7 +261,14 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
       }
       
       // Определяем тип тренировки из всего блока
-      const type = parseTrainingType(block)
+      let type = parseTrainingType(block)
+      
+      // Если тип не определён и это не похоже на игровую, ставим "групповая" по умолчанию
+      if (!type && !/игровая|игров\w*/i.test(block)) {
+        type = 'групповая'
+        console.log(`Assigned default type: групповая`)
+      }
+      
       console.log(`Training type: ${type}`)
       
       // Определяем цену на основе типа
@@ -270,6 +277,10 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
         price = gamePrice
       } else if (type === 'групповая' || type === 'мини-группа' || type === 'детская группа') {
         price = groupPrice
+      } else if (groupPrice) {
+        // Fallback: если тип не определён, используем цену групповых по умолчанию
+        price = groupPrice
+        console.log(`Using default group price for training without explicit type`)
       }
       
       // Fallback: пробуем извлечь цену из блока тренировки
