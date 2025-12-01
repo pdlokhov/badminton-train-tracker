@@ -58,8 +58,6 @@ interface WeeklySlot {
   type: string | null
   level: string | null
   description: string
-  location: string | null  // Название локации
-  location_id: string | null  // ID локации
 }
 
 // Карта месяцев для парсинга дат
@@ -151,152 +149,56 @@ function parseSlotLevel(text: string): string | null {
   return null
 }
 
-// Парсинг слотов по дням недели с отслеживанием локации
-// Структура: сначала зал/локация, потом все дни для этого зала
-function parseWeeklySlots(text: string, knownLocations: Location[]): WeeklySlot[] {
+// Парсинг слотов по дням недели
+function parseWeeklySlots(text: string): WeeklySlot[] {
   const slots: WeeklySlot[] = []
+  const textLower = text.toLowerCase()
   
-  // Разбиваем текст на секции по локациям
-  // Ищем маркеры локаций: эмодзи 🎯, названия из справочника, или строки вида "СК Название"
-  const locationSections: { location: Location | null; startPos: number; endPos: number }[] = []
-  
-  // Находим все возможные начала секций локаций
-  const locationMarkers: { position: number; location: Location | null }[] = []
-  
-  // 1. Ищем эмодзи 🎯 как маркер локации
-  let pos = 0
-  while ((pos = text.indexOf('🎯', pos)) !== -1) {
-    locationMarkers.push({ position: pos, location: null })
-    pos++
-  }
-  
-  // 2. Ищем известные локации из справочника
-  for (const location of knownLocations) {
-    const searchTexts = [location.name, ...(location.aliases || [])]
-    for (const searchText of searchTexts) {
-      let pos = 0
-      const textLower = text.toLowerCase()
-      const searchLower = searchText.toLowerCase()
-      while ((pos = textLower.indexOf(searchLower, pos)) !== -1) {
-        // Проверяем, что это начало строки или после переноса
-        if (pos === 0 || text[pos - 1] === '\n' || text[pos - 1] === ' ') {
-          locationMarkers.push({ position: pos, location })
-        }
-        pos++
-      }
+  // Определяем позиции всех дней недели
+  const dayPositions: { day: string; dayIndex: number; position: number }[] = []
+  for (const [dayName, dayIndex] of Object.entries(dayOfWeekMap)) {
+    let pos = textLower.indexOf(dayName)
+    while (pos !== -1) {
+      dayPositions.push({ day: dayName, dayIndex, position: pos })
+      pos = textLower.indexOf(dayName, pos + 1)
     }
   }
   
-  // 3. Ищем паттерны вида "СК Название" в начале строк
-  const skPattern = /^СК\s+[А-Яа-яA-Za-z0-9\s]+/gm
-  let match
-  while ((match = skPattern.exec(text)) !== null) {
-    const locationName = match[0].trim()
-    // Пытаемся найти в справочнике
-    const found = knownLocations.find(loc => 
-      locationName.toLowerCase().includes(loc.name.toLowerCase()) ||
-      (loc.aliases && loc.aliases.some(alias => locationName.toLowerCase().includes(alias.toLowerCase())))
-    )
-    locationMarkers.push({ position: match.index, location: found || null })
-  }
+  // Сортируем по позиции
+  dayPositions.sort((a, b) => a.position - b.position)
   
-  // Сортируем маркеры по позиции и убираем дубликаты
-  locationMarkers.sort((a, b) => a.position - b.position)
-  const uniqueMarkers: typeof locationMarkers = []
-  for (const marker of locationMarkers) {
-    if (uniqueMarkers.length === 0 || marker.position > uniqueMarkers[uniqueMarkers.length - 1].position + 10) {
-      uniqueMarkers.push(marker)
-    }
-  }
-  
-  console.log(`Found ${uniqueMarkers.length} location sections`)
-  
-  // Создаем секции между маркерами
-  for (let i = 0; i < uniqueMarkers.length; i++) {
-    const startPos = uniqueMarkers[i].position
-    const endPos = i < uniqueMarkers.length - 1 ? uniqueMarkers[i + 1].position : text.length
-    locationSections.push({
-      location: uniqueMarkers[i].location,
-      startPos,
-      endPos
-    })
-  }
-  
-  // Если не нашли секций, обрабатываем весь текст как одну секцию
-  if (locationSections.length === 0) {
-    locationSections.push({
-      location: null,
-      startPos: 0,
-      endPos: text.length
-    })
-  }
-  
-  // Обрабатываем каждую секцию локации
-  for (const section of locationSections) {
-    const sectionText = text.slice(section.startPos, section.endPos)
-    const sectionTextLower = sectionText.toLowerCase()
+  // Для каждого дня извлекаем секцию текста до следующего дня
+  for (let i = 0; i < dayPositions.length; i++) {
+    const current = dayPositions[i]
+    const nextPos = i < dayPositions.length - 1 ? dayPositions[i + 1].position : text.length
+    const section = text.slice(current.position, nextPos)
     
-    // Извлекаем локацию из первой строки секции если не нашли в справочнике
-    let activeLocation = section.location
-    if (!activeLocation) {
-      const firstLine = sectionText.split('\n')[0]
-      const locationFromLine = knownLocations.find(loc =>
-        firstLine.toLowerCase().includes(loc.name.toLowerCase()) ||
-        (loc.aliases && loc.aliases.some(alias => firstLine.toLowerCase().includes(alias.toLowerCase())))
-      )
-      activeLocation = locationFromLine || null
-    }
+    // Ищем все времена в секции
+    const timeRegex = /(\d{1,2}:\d{2})\s*[-–—]?\s*(\d{1,2}:\d{2})?/g
+    let timeMatch
     
-    console.log(`Processing section with location: ${activeLocation?.name || 'Unknown'}`)
-    
-    // Определяем позиции всех дней недели в секции
-    const dayPositions: { day: string; dayIndex: number; position: number }[] = []
-    for (const [dayName, dayIndex] of Object.entries(dayOfWeekMap)) {
-      let pos = 0
-      while ((pos = sectionTextLower.indexOf(dayName, pos)) !== -1) {
-        dayPositions.push({ day: dayName, dayIndex, position: pos })
-        pos++
-      }
-    }
-    
-    // Сортируем по позиции
-    dayPositions.sort((a, b) => a.position - b.position)
-    
-    // Для каждого дня извлекаем секцию текста до следующего дня
-    for (let i = 0; i < dayPositions.length; i++) {
-      const current = dayPositions[i]
-      const nextPos = i < dayPositions.length - 1 ? dayPositions[i + 1].position : sectionText.length
-      const daySection = sectionText.slice(current.position, nextPos)
+    while ((timeMatch = timeRegex.exec(section)) !== null) {
+      const timeStart = timeMatch[1]
+      const timeEnd = timeMatch[2] || null
       
-      // Ищем все времена в секции дня
-      const timeRegex = /(\d{1,2}):(\d{2})\s*[-–—]?\s*(\d{1,2}):(\d{2})?/g
-      let timeMatch
+      // Извлекаем описание после времени (до следующего времени или конца секции)
+      const afterTime = section.slice(timeMatch.index + timeMatch[0].length)
+      const nextTimeIdx = afterTime.search(/\d{1,2}:\d{2}/)
+      const description = (nextTimeIdx > 0 ? afterTime.slice(0, nextTimeIdx) : afterTime).trim()
       
-      while ((timeMatch = timeRegex.exec(daySection)) !== null) {
-        const timeStart = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`
-        const timeEnd = timeMatch[3] && timeMatch[4] ? `${timeMatch[3].padStart(2, '0')}:${timeMatch[4]}` : null
-        
-        // Извлекаем описание после времени (до следующего времени или конца секции)
-        const afterTime = daySection.slice(timeMatch.index + timeMatch[0].length)
-        const nextTimeIdx = afterTime.search(/\d{1,2}:\d{2}/)
-        const description = (nextTimeIdx > 0 ? afterTime.slice(0, nextTimeIdx) : afterTime).trim()
-        
-        // Определяем тип и уровень
-        const combinedText = description + ' ' + daySection
-        const type = parseTrainingType(combinedText)
-        const level = parseSlotLevel(combinedText)
-        
-        slots.push({
-          dayOfWeek: current.dayIndex,
-          timeStart,
-          timeEnd,
-          type,
-          level,
-          description: description.slice(0, 100), // Ограничиваем длину
-          location: activeLocation?.name || null,
-          location_id: activeLocation?.id || null
-        })
-      }
+      // Определяем тип и уровень
+      const combinedText = description + ' ' + section
+      const type = parseTrainingType(combinedText)
+      const level = parseSlotLevel(combinedText)
+      
+      slots.push({
+        dayOfWeek: current.dayIndex,
+        timeStart,
+        timeEnd,
+        type,
+        level,
+        description: description.slice(0, 100) // Ограничиваем длину
+      })
     }
   }
   
@@ -313,6 +215,7 @@ function generateTrainingsFromWeekly(
   knownLocations: Location[]
 ): ParsedTraining[] {
   const trainings: ParsedTraining[] = []
+  const locationResult = findLocation(text, knownLocations)
   
   // Проходим по каждому дню в диапазоне
   const currentDate = new Date(dateRange.startDate)
@@ -337,8 +240,8 @@ function generateTrainingsFromWeekly(
         level: slot.level,
         type: slot.type,
         price: null,
-        location: slot.location, // Используем локацию из слота
-        location_id: slot.location_id, // Используем location_id из слота
+        location: locationResult?.name || null,
+        location_id: locationResult?.id || null,
         description: slot.description || null,
         raw_text: text,
         message_id: `${messageId}_${dateStr}_${slot.timeStart}`,
@@ -365,30 +268,18 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
   
   console.log(`Message ${messageId}: date range = ${dateRange.startDate.toISOString()} - ${dateRange.endDate.toISOString()}`)
   
-  const slots = parseWeeklySlots(text, knownLocations)
+  const slots = parseWeeklySlots(text)
   if (slots.length === 0) {
     console.log(`Message ${messageId}: no slots found`)
     return []
   }
   
-  // Выводим информацию о найденных локациях для отладки
-  const uniqueLocations = [...new Set(slots.map(s => s.location).filter(Boolean))]
-  if (uniqueLocations.length > 0) {
-    console.log(`Found locations in slots: ${uniqueLocations.join(', ')}`)
-  }
-  
   return generateTrainingsFromWeekly(text, dateRange, slots, messageId, knownLocations)
 }
 
-// Определение типа тренировки: игровая, мини-группа, мини-игровая, групповая, детская
+// Определение типа тренировки: игровая, мини-группа, мини-игровая, групповая
 function parseTrainingType(text: string): string | null {
   // Порядок важен: сначала проверяем составные типы
-  
-  // "Дети до X лет", "Дети от X лет", "детская тренировка"
-  if (/дети\s+(до|от|[\d]+)/i.test(text) || /детск/i.test(text)) {
-    return 'детская'
-  }
-  
   // "мини-игровая" или "мини игровая"
   if (/мини[\s-]?игров/i.test(text)) {
     return 'мини-игровая'
