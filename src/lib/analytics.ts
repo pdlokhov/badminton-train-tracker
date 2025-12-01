@@ -1,0 +1,127 @@
+import { supabase } from "@/integrations/supabase/client";
+
+const VISITOR_ID_KEY = "analytics_visitor_id";
+const SESSION_ID_KEY = "analytics_session_id";
+const SESSION_START_KEY = "analytics_session_start";
+const FIRST_VISIT_KEY = "analytics_first_visit";
+const ANALYTICS_CONSENT_KEY = "analytics_consent";
+
+// Generate unique ID
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+}
+
+// Get or create visitor ID
+export function getOrCreateVisitorId(): string {
+  let visitorId = localStorage.getItem(VISITOR_ID_KEY);
+  if (!visitorId) {
+    visitorId = generateId();
+    localStorage.setItem(VISITOR_ID_KEY, visitorId);
+    localStorage.setItem(FIRST_VISIT_KEY, new Date().toISOString());
+  }
+  return visitorId;
+}
+
+// Get or create session ID (expires after 30 min of inactivity)
+export function getOrCreateSessionId(): string {
+  const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+  
+  let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+  const sessionStart = sessionStorage.getItem(SESSION_START_KEY);
+  const now = Date.now();
+  
+  if (!sessionId || !sessionStart || now - parseInt(sessionStart) > SESSION_TIMEOUT) {
+    sessionId = generateId();
+    sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+    sessionStorage.setItem(SESSION_START_KEY, now.toString());
+  } else {
+    // Update session activity
+    sessionStorage.setItem(SESSION_START_KEY, now.toString());
+  }
+  
+  return sessionId;
+}
+
+// Get device type
+export function getDeviceType(): string {
+  const ua = navigator.userAgent;
+  if (/tablet|ipad|playbook|silk/i.test(ua)) {
+    return "tablet";
+  }
+  if (/mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile/i.test(ua)) {
+    return "mobile";
+  }
+  return "desktop";
+}
+
+// Check analytics consent
+export function hasAnalyticsConsent(): boolean {
+  const consent = localStorage.getItem(ANALYTICS_CONSENT_KEY);
+  return consent === "true" || consent === "all";
+}
+
+// Set analytics consent
+export function setAnalyticsConsent(value: boolean | "all" | "necessary"): void {
+  if (value === true || value === "all") {
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, "true");
+  } else {
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, "false");
+  }
+}
+
+// Get consent status
+export function getConsentStatus(): "pending" | "accepted" | "rejected" {
+  const consent = localStorage.getItem(ANALYTICS_CONSENT_KEY);
+  if (consent === null) return "pending";
+  return consent === "true" || consent === "all" ? "accepted" : "rejected";
+}
+
+// Check if first visit
+export function isFirstVisit(): boolean {
+  return !localStorage.getItem(FIRST_VISIT_KEY);
+}
+
+// Send event to database
+export async function sendEvent(
+  eventType: string,
+  eventData: Record<string, unknown> = {}
+): Promise<void> {
+  if (!hasAnalyticsConsent()) {
+    return;
+  }
+
+  try {
+    const visitorId = getOrCreateVisitorId();
+    const sessionId = getOrCreateSessionId();
+    const deviceType = getDeviceType();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from("analytics_events").insert([{
+      visitor_id: visitorId,
+      session_id: sessionId,
+      event_type: eventType,
+      event_data: eventData as any,
+      page_path: window.location.pathname,
+      referrer: document.referrer || null,
+      user_agent: navigator.userAgent,
+      device_type: deviceType,
+    }]);
+  } catch (error) {
+    console.error("Analytics error:", error);
+  }
+}
+
+// Debounce helper
+export function debounce<T extends (...args: unknown[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}

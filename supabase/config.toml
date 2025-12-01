@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.setup-admin]
 verify_jwt = false
+
+[functions.aggregate-analytics]
+verify_jwt = false

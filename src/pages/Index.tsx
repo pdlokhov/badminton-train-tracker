@@ -10,6 +10,8 @@ import { TrainingsList } from "@/components/TrainingsList";
 import { Header } from "@/components/Header";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Footer } from "@/components/Footer";
+import { CookieConsent } from "@/components/CookieConsent";
+import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -99,6 +101,7 @@ const Index = () => {
                 <TabsTrigger value="schedule">Расписание</TabsTrigger>
                 <TabsTrigger value="channels">Каналы</TabsTrigger>
                 <TabsTrigger value="locations">Локации</TabsTrigger>
+                <TabsTrigger value="analytics">Аналитика</TabsTrigger>
               </TabsList>
 
               <TabsContent value="schedule">
@@ -131,6 +134,20 @@ const Index = () => {
                   <CardContent className="space-y-4">
                     <LocationForm onLocationAdded={handleLocationAdded} />
                     <LocationList refreshTrigger={refreshTrigger} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="analytics">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Аналитика</CardTitle>
+                    <CardDescription>
+                      Статистика посещений и поведения пользователей
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AnalyticsDashboard />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -171,6 +188,9 @@ const Index = () => {
       )}
 
       {!isMobile && <Footer />}
+
+      {/* Cookie Consent Banner */}
+      <CookieConsent />
     </div>
   );
 };
