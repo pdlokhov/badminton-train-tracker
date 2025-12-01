@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Users } from "lucide-react";
 
 interface TrainingCardProps {
   timeStart: string | null;
@@ -7,6 +7,7 @@ interface TrainingCardProps {
   location: string | null;
   clubName: string | null;
   price: number | null;
+  spots: number | null;
   telegramUrl?: string;
   onClick?: () => void;
 }
@@ -18,12 +19,12 @@ export function TrainingCard({
   location,
   clubName,
   price,
+  spots,
   telegramUrl,
   onClick,
 }: TrainingCardProps) {
-const formatTime = (start: string | null, end: string | null) => {
+  const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
-    // Remove seconds if present (HH:MM:SS -> HH:MM)
     const formatTimeStr = (t: string) => t.length > 5 ? t.substring(0, 5) : t;
     const s = formatTimeStr(start);
     const e = end ? formatTimeStr(end) : null;
@@ -35,29 +36,19 @@ const formatTime = (start: string | null, end: string | null) => {
     return `${price} ₽`;
   };
 
-  const title = [type, location].filter(Boolean).join(" • ");
-
   return (
     <div
       onClick={onClick}
       className="group flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md hover:border-primary/30"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-lg font-semibold text-foreground">
-            {formatTime(timeStart, timeEnd)}
-          </p>
-          <p className="mt-1 text-base font-medium text-foreground truncate">
-            {title || "Тренировка"}
-          </p>
-          <p className="mt-0.5 text-sm text-muted-foreground truncate">
-            {clubName || "—"}
-          </p>
-        </div>
-        
-        <div className="flex flex-col items-end gap-1 shrink-0">
+      {/* Header: time + price */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-lg font-semibold text-foreground">
+          {formatTime(timeStart, timeEnd)}
+        </p>
+        <div className="flex items-center gap-2">
           {price !== null && (
-            <span className="text-base font-medium text-foreground">
+            <span className="text-base font-semibold text-foreground">
               {formatPrice(price)}
             </span>
           )}
@@ -73,6 +64,31 @@ const formatTime = (start: string | null, end: string | null) => {
             </a>
           )}
         </div>
+      </div>
+
+      {/* Type badge + spots */}
+      <div className="mt-2 flex items-center gap-2">
+        {type && (
+          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary">
+            {type}
+          </span>
+        )}
+        {spots !== null && (
+          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            {spots} мест
+          </span>
+        )}
+      </div>
+
+      {/* Location + club */}
+      <div className="mt-2 space-y-0.5">
+        {location && (
+          <p className="text-sm text-foreground truncate">{location}</p>
+        )}
+        <p className="text-sm text-muted-foreground truncate">
+          {clubName || "—"}
+        </p>
       </div>
     </div>
   );
