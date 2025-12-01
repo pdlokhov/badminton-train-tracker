@@ -50,6 +50,233 @@ interface ImageScheduleResult {
   trainings: ImageScheduleTraining[]
 }
 
+// Интерфейс для слота в недельном расписании
+interface WeeklySlot {
+  dayOfWeek: number  // 0=воскресенье, 1=понедельник, ...
+  timeStart: string
+  timeEnd: string | null
+  type: string | null
+  level: string | null
+  description: string
+}
+
+// Карта месяцев для парсинга дат
+const monthMap: Record<string, number> = {
+  'января': 0, 'февраля': 1, 'марта': 2, 'апреля': 3,
+  'мая': 4, 'июня': 5, 'июля': 6, 'августа': 7,
+  'сентября': 8, 'октября': 9, 'ноября': 10, 'декабря': 11
+}
+
+// Карта дней недели
+const dayOfWeekMap: Record<string, number> = {
+  'воскресенье': 0, 'понедельник': 1, 'вторник': 2, 'среда': 3,
+  'четверг': 4, 'пятница': 5, 'суббота': 6
+}
+
+// Определение: это недельное расписание?
+function isWeeklySchedule(text: string): boolean {
+  // Признаки недельного расписания:
+  // 1. Диапазон дат: "1-7 декабря", "с 1 по 7 декабря", "1 по 7 декабря"
+  // 2. Несколько дней недели
+  
+  const hasDateRange = /(\d+)\s*[-–—]\s*(\d+)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text) ||
+                       /[сc]\s*(\d+)\s+по\s+(\d+)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text) ||
+                       /(\d+)\s+по\s+(\d+)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text)
+  
+  const dayNames = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+  const daysCount = dayNames.filter(day => text.toLowerCase().includes(day)).length
+  
+  return hasDateRange && daysCount >= 2
+}
+
+// Парсинг диапазона дат из текста
+function parseDateRange(text: string): { startDate: Date; endDate: Date } | null {
+  // Формат: "1-7 декабря", "с 1 по 7 декабря", "1 по 7 декабря"
+  let match = text.match(/(\d+)\s*[-–—]\s*(\d+)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i)
+  
+  if (!match) {
+    match = text.match(/[сc]?\s*(\d+)\s+по\s+(\d+)\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i)
+  }
+  
+  if (!match) return null
+  
+  const startDay = parseInt(match[1])
+  const endDay = parseInt(match[2])
+  const monthName = match[3].toLowerCase()
+  const month = monthMap[monthName]
+  
+  if (month === undefined) return null
+  
+  // Определяем год
+  const now = new Date()
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+  
+  // Если месяц в прошлом относительно текущего, это следующий год
+  let year = currentYear
+  if (month < currentMonth - 1) {
+    year = currentYear + 1
+  }
+  
+  return {
+    startDate: new Date(year, month, startDay),
+    endDate: new Date(year, month, endDay)
+  }
+}
+
+// Парсинг уровня из текста слота
+function parseSlotLevel(text: string): string | null {
+  // Числовой уровень: 1.0-2.0, 2.5
+  const numericMatch = text.match(/([1-5][.,][05])\s*[-–—\/]?\s*([1-5][.,][05])?/)
+  if (numericMatch) {
+    const lvl1 = numericMatch[1].replace(',', '.')
+    const lvl2 = numericMatch[2]?.replace(',', '.')
+    return lvl2 ? `${lvl1}-${lvl2}` : lvl1
+  }
+  
+  // Буквенный уровень: C-D, D-E (латинские A-F и русские А-Е)
+  const letterMatch = text.match(/([A-FА-Е])\s*[-–—\/]\s*([A-FА-Е])/i)
+  if (letterMatch) {
+    return normalizeLevel(letterMatch[1] + '-' + letterMatch[2])
+  }
+  
+  // Одиночная буква
+  const singleLetter = text.match(/уровень\s*([A-FА-Е])/i)
+  if (singleLetter) {
+    return normalizeLevel(singleLetter[1])
+  }
+  
+  return null
+}
+
+// Парсинг слотов по дням недели
+function parseWeeklySlots(text: string): WeeklySlot[] {
+  const slots: WeeklySlot[] = []
+  const textLower = text.toLowerCase()
+  
+  // Определяем позиции всех дней недели
+  const dayPositions: { day: string; dayIndex: number; position: number }[] = []
+  for (const [dayName, dayIndex] of Object.entries(dayOfWeekMap)) {
+    let pos = textLower.indexOf(dayName)
+    while (pos !== -1) {
+      dayPositions.push({ day: dayName, dayIndex, position: pos })
+      pos = textLower.indexOf(dayName, pos + 1)
+    }
+  }
+  
+  // Сортируем по позиции
+  dayPositions.sort((a, b) => a.position - b.position)
+  
+  // Для каждого дня извлекаем секцию текста до следующего дня
+  for (let i = 0; i < dayPositions.length; i++) {
+    const current = dayPositions[i]
+    const nextPos = i < dayPositions.length - 1 ? dayPositions[i + 1].position : text.length
+    const section = text.slice(current.position, nextPos)
+    
+    // Ищем все времена в секции
+    const timeRegex = /(\d{1,2}:\d{2})\s*[-–—]?\s*(\d{1,2}:\d{2})?/g
+    let timeMatch
+    
+    while ((timeMatch = timeRegex.exec(section)) !== null) {
+      const timeStart = timeMatch[1]
+      const timeEnd = timeMatch[2] || null
+      
+      // Извлекаем описание после времени (до следующего времени или конца секции)
+      const afterTime = section.slice(timeMatch.index + timeMatch[0].length)
+      const nextTimeIdx = afterTime.search(/\d{1,2}:\d{2}/)
+      const description = (nextTimeIdx > 0 ? afterTime.slice(0, nextTimeIdx) : afterTime).trim()
+      
+      // Определяем тип и уровень
+      const combinedText = description + ' ' + section
+      const type = parseTrainingType(combinedText)
+      const level = parseSlotLevel(combinedText)
+      
+      slots.push({
+        dayOfWeek: current.dayIndex,
+        timeStart,
+        timeEnd,
+        type,
+        level,
+        description: description.slice(0, 100) // Ограничиваем длину
+      })
+    }
+  }
+  
+  console.log(`parseWeeklySlots: found ${slots.length} slots`)
+  return slots
+}
+
+// Генерация тренировок из недельного расписания
+function generateTrainingsFromWeekly(
+  text: string,
+  dateRange: { startDate: Date; endDate: Date },
+  slots: WeeklySlot[],
+  messageId: string,
+  knownLocations: Location[]
+): ParsedTraining[] {
+  const trainings: ParsedTraining[] = []
+  const locationResult = findLocation(text, knownLocations)
+  
+  // Проходим по каждому дню в диапазоне
+  const currentDate = new Date(dateRange.startDate)
+  while (currentDate <= dateRange.endDate) {
+    const dayOfWeek = currentDate.getDay()
+    
+    // Находим слоты для этого дня недели
+    const daySlots = slots.filter(s => s.dayOfWeek === dayOfWeek)
+    
+    for (const slot of daySlots) {
+      const year = currentDate.getFullYear()
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+      const day = String(currentDate.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+      
+      trainings.push({
+        title: slot.type || 'Тренировка',
+        date: dateStr,
+        time_start: slot.timeStart,
+        time_end: slot.timeEnd,
+        coach: null,
+        level: slot.level,
+        type: slot.type,
+        price: null,
+        location: locationResult?.name || null,
+        location_id: locationResult?.id || null,
+        description: slot.description || null,
+        raw_text: text,
+        message_id: `${messageId}_${dateStr}_${slot.timeStart}`,
+        spots: null
+      })
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1)
+  }
+  
+  console.log(`generateTrainingsFromWeekly: generated ${trainings.length} trainings from ${slots.length} slots`)
+  return trainings
+}
+
+// Парсинг недельного расписания
+function parseWeeklySchedule(text: string, messageId: string, knownLocations: Location[]): ParsedTraining[] {
+  console.log(`Message ${messageId}: detected WEEKLY SCHEDULE`)
+  
+  const dateRange = parseDateRange(text)
+  if (!dateRange) {
+    console.log(`Message ${messageId}: could not parse date range`)
+    return []
+  }
+  
+  console.log(`Message ${messageId}: date range = ${dateRange.startDate.toISOString()} - ${dateRange.endDate.toISOString()}`)
+  
+  const slots = parseWeeklySlots(text)
+  if (slots.length === 0) {
+    console.log(`Message ${messageId}: no slots found`)
+    return []
+  }
+  
+  return generateTrainingsFromWeekly(text, dateRange, slots, messageId, knownLocations)
+}
+
 // Определение типа тренировки: игровая, мини-группа, мини-игровая, групповая
 function parseTrainingType(text: string): string | null {
   // Порядок важен: сначала проверяем составные типы
@@ -475,6 +702,59 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
   console.log(`Filtered to ${trainingMessages.length} training messages (with DD.MM date)`)
   
   return trainingMessages
+}
+
+// Получение всех сообщений канала (включая недельные расписания)
+async function fetchTelegramChannelWithWeekly(username: string): Promise<{ text: string, messageId: string }[]> {
+  const url = `https://t.me/s/${username}`
+  console.log(`Fetching channel (with weekly): ${url}`)
+  
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+  })
+  
+  if (!response.ok) {
+    console.error(`Failed to fetch ${url}: ${response.status}`)
+    return []
+  }
+  
+  const html = await response.text()
+  const messages: { text: string, messageId: string }[] = []
+  
+  // Parse messages from HTML
+  const messageRegex = /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
+  let match
+  
+  while ((match = messageRegex.exec(html)) !== null) {
+    const messageId = match[1]
+    let text = match[2]
+    
+    // Clean HTML tags
+    text = text.replace(/<br\s*\/?>/gi, '\n')
+    text = text.replace(/<[^>]+>/g, '')
+    text = text.replace(/&nbsp;/g, ' ')
+    text = text.replace(/&amp;/g, '&')
+    text = text.replace(/&lt;/g, '<')
+    text = text.replace(/&gt;/g, '>')
+    text = text.replace(/&quot;/g, '"')
+    text = text.trim()
+    
+    if (text.length > 10) {
+      messages.push({ text, messageId })
+    }
+  }
+  
+  console.log(`Found ${messages.length} total messages in ${username}`)
+  
+  // Фильтруем: либо недельное расписание, либо сообщение с датой DD.MM
+  const relevantMessages = messages.filter(msg => 
+    isWeeklySchedule(msg.text) || containsTrainingDate(msg.text).valid
+  )
+  console.log(`Filtered to ${relevantMessages.length} relevant messages (weekly schedules + DD.MM dates)`)
+  
+  return relevantMessages
 }
 
 // Извлечение URL изображений из HTML канала с фильтрацией по дате
@@ -920,34 +1200,68 @@ Deno.serve(async (req) => {
           }
         }
       } else {
-        // ===== РЕЖИМ ПАРСИНГА ТЕКСТА (существующая логика) =====
-        const messages = await fetchTelegramChannel(channel.username)
-        totalParsed += messages.length
+        // ===== РЕЖИМ ПАРСИНГА ТЕКСТА =====
+        const allMessages = await fetchTelegramChannelWithWeekly(channel.username)
+        totalParsed += allMessages.length
         
-        for (const msg of messages) {
-          const training = parseTrainingFromText(msg.text, msg.messageId, knownLocations)
-          
-          // Пропускаем если парсинг не удался (нет валидной даты)
-          if (!training) {
-            totalSkipped++
-            continue
-          }
-          
-          const { error: upsertError } = await supabase
-            .from('trainings')
-            .upsert({
-              channel_id: channel.id,
-              ...training,
-              location_id: training.location_id || null
-            }, {
-              onConflict: 'channel_id,message_id'
-            })
-          
-          if (upsertError) {
-            console.error(`Error upserting training ${msg.messageId}:`, upsertError)
-            totalSkipped++
+        for (const msg of allMessages) {
+          // Сначала проверяем: это недельное расписание?
+          if (isWeeklySchedule(msg.text)) {
+            const trainings = parseWeeklySchedule(msg.text, msg.messageId, knownLocations)
+            
+            for (const training of trainings) {
+              const { error: upsertError } = await supabase
+                .from('trainings')
+                .upsert({
+                  channel_id: channel.id,
+                  ...training,
+                  location_id: training.location_id || null
+                }, {
+                  onConflict: 'channel_id,message_id'
+                })
+              
+              if (upsertError) {
+                console.error(`Error upserting weekly training:`, upsertError)
+                totalSkipped++
+              } else {
+                totalAdded++
+              }
+            }
+            
+            if (trainings.length === 0) {
+              totalSkipped++
+            }
           } else {
-            totalAdded++
+            // Стандартный парсинг одиночных тренировок
+            // Проверяем наличие даты DD.MM
+            if (!containsTrainingDate(msg.text).valid) {
+              totalSkipped++
+              continue
+            }
+            
+            const training = parseTrainingFromText(msg.text, msg.messageId, knownLocations)
+            
+            if (!training) {
+              totalSkipped++
+              continue
+            }
+            
+            const { error: upsertError } = await supabase
+              .from('trainings')
+              .upsert({
+                channel_id: channel.id,
+                ...training,
+                location_id: training.location_id || null
+              }, {
+                onConflict: 'channel_id,message_id'
+              })
+            
+            if (upsertError) {
+              console.error(`Error upserting training ${msg.messageId}:`, upsertError)
+              totalSkipped++
+            } else {
+              totalAdded++
+            }
           }
         }
       }
