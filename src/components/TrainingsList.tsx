@@ -4,11 +4,8 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SearchBar } from "./SearchBar";
-import { FiltersDropdown } from "./FiltersDropdown";
-import { SortDropdown, SortOption } from "./SortDropdown";
 import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
-import { FilterChips } from "./FilterChips";
 import { DatePicker } from "./DatePicker";
 import { AdminFiltersBar } from "./AdminFiltersBar";
 import { AdminTrainingsTable } from "./AdminTrainingsTable";
@@ -63,8 +60,6 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   // Derived date filter string for API
   const dateFilter = format(selectedDate, "yyyy-MM-dd");
   
-  // Sort
-  const [sortOption, setSortOption] = useState<SortOption>("time");
   
   // Admin table sorting
   const [tableSortColumn, setTableSortColumn] = useState("time");
@@ -197,21 +192,12 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     return result;
   }, [trainings, searchQuery, dateFilter, isAdmin, locationSearch]);
 
-  // Sort trainings (for user view)
+  // Sort trainings (for user view - always by time)
   const sortedTrainings = useMemo(() => {
     return [...filteredTrainings].sort((a, b) => {
-      switch (sortOption) {
-        case "time":
-          return (a.time_start || "").localeCompare(b.time_start || "");
-        case "price":
-          return (a.price ?? 9999) - (b.price ?? 9999);
-        case "type":
-          return (a.type || "").localeCompare(b.type || "", "ru");
-        default:
-          return 0;
-      }
+      return (a.time_start || "").localeCompare(b.time_start || "");
     });
-  }, [filteredTrainings, sortOption]);
+  }, [filteredTrainings]);
 
   // Sort trainings for admin table view
   const adminSortedTrainings = useMemo(() => {
@@ -255,31 +241,6 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
       return format(date, "d MMMM", { locale: ru });
     } catch {
       return dateStr;
-    }
-  };
-
-  // Filter chips for mobile
-  const filterChips = useMemo(() => {
-    const chips = [{ id: "filters", label: "Фильтры", hasDropdown: true, active: false }];
-    
-    types.slice(0, 3).forEach(type => {
-      chips.push({
-        id: `type-${type}`,
-        label: type,
-        active: typeFilter === type,
-        hasDropdown: false,
-      });
-    });
-    
-    return chips;
-  }, [types, typeFilter]);
-
-  const handleChipClick = (chipId: string) => {
-    if (chipId === "filters") return;
-    
-    if (chipId.startsWith("type-")) {
-      const type = chipId.replace("type-", "");
-      setTypeFilter(typeFilter === type ? "all" : type);
     }
   };
 
@@ -369,46 +330,17 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   // User view
   return (
     <div className="space-y-4">
-      {/* Search and Filters */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder={isMobile ? "Поиск по залу, виду спорта" : "Поиск по залу, виду спорта или району"}
-          />
-        </div>
-        {!isMobile && (
-          <FiltersDropdown
-            coaches={coaches}
-            levels={levels}
-            types={types}
-            channels={channels}
-            selectedCoach={coachFilter}
-            selectedLevel={levelFilter}
-            selectedType={typeFilter}
-            selectedChannel={channelFilter}
-            onCoachChange={setCoachFilter}
-            onLevelChange={setLevelFilter}
-            onTypeChange={setTypeFilter}
-            onChannelChange={setChannelFilter}
-          />
-        )}
-      </div>
+      {/* Search */}
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+      />
 
-      {/* Mobile Filter Chips */}
-      {isMobile && (
-        <FilterChips chips={filterChips} onChipClick={handleChipClick} />
-      )}
-
-      {/* Header with date picker, count and sort */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <DatePicker date={selectedDate} onDateChange={setSelectedDate} />
-          <span className="text-muted-foreground">•</span>
-          <span className="text-base text-muted-foreground">{sortedTrainings.length} тренировок</span>
-        </div>
-        <SortDropdown value={sortOption} onChange={setSortOption} />
+      {/* Header with date picker and count */}
+      <div className="flex items-center gap-2">
+        <DatePicker date={selectedDate} onDateChange={setSelectedDate} />
+        <span className="text-muted-foreground">•</span>
+        <span className="text-base text-muted-foreground">{sortedTrainings.length} тренировок</span>
       </div>
 
       {/* Content */}
