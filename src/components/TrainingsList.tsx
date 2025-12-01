@@ -309,6 +309,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
+              level={training.level}
               location={getLocation(training)}
               clubName={training.channels?.name || null}
               price={training.price}
@@ -329,6 +330,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
+              level={training.level}
               location={getLocation(training)}
               clubName={training.channels?.name || null}
               price={training.price}

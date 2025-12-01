@@ -4,6 +4,7 @@ interface TrainingCardProps {
   timeStart: string | null;
   timeEnd: string | null;
   type: string | null;
+  level: string | null;
   location: string | null;
   clubName: string | null;
   price: number | null;
@@ -16,6 +17,7 @@ export function TrainingCard({
   timeStart,
   timeEnd,
   type,
+  level,
   location,
   clubName,
   price,
@@ -66,11 +68,16 @@ export function TrainingCard({
         </div>
       </div>
 
-      {/* Type badge + spots */}
-      <div className="mt-2 flex items-center gap-2">
+      {/* Type badge + level badge + spots */}
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
         {type && (
           <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary">
             {type}
+          </span>
+        )}
+        {level && (
+          <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-0.5 text-sm font-medium text-orange-600 dark:text-orange-400">
+            {level}
           </span>
         )}
         {spots !== null && (

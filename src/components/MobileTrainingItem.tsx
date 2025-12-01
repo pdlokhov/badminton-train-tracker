@@ -2,6 +2,7 @@ interface MobileTrainingItemProps {
   timeStart: string | null;
   timeEnd: string | null;
   type: string | null;
+  level: string | null;
   location: string | null;
   clubName: string | null;
   price: number | null;
@@ -13,6 +14,7 @@ export function MobileTrainingItem({
   timeStart,
   timeEnd,
   type,
+  level,
   location,
   clubName,
   price,
@@ -38,15 +40,13 @@ const formatTime = (start: string | null, end: string | null) => {
     return `${spots} мест`;
   };
 
-  const title = [type, location].filter(Boolean).join(" •");
-
   return (
     <div
       onClick={onClick}
       className="flex cursor-pointer items-start justify-between border-b border-border py-4 last:border-b-0"
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-base font-semibold text-foreground">
             {formatTime(timeStart, timeEnd)}
           </span>
@@ -61,10 +61,24 @@ const formatTime = (start: string | null, end: string | null) => {
             </span>
           )}
         </div>
-        <p className="mt-1 text-base font-medium text-foreground">
-          {title || "Тренировка"}
-        </p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <div className="mt-1 flex items-center gap-2 flex-wrap">
+          {type && (
+            <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+              {type}
+            </span>
+          )}
+          {level && (
+            <span className="inline-flex items-center rounded-md bg-orange-500/10 px-1.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">
+              {level}
+            </span>
+          )}
+          {location && (
+            <span className="text-sm text-foreground truncate">
+              {location}
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-sm text-muted-foreground truncate">
           {clubName || "—"}
         </p>
       </div>
