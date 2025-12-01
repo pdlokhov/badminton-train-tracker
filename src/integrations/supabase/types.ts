@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           default_coach: string | null
+          default_location_id: string | null
           id: string
           is_active: boolean
           name: string
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           created_at?: string
           default_coach?: string | null
+          default_location_id?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           created_at?: string
           default_coach?: string | null
+          default_location_id?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -48,7 +51,15 @@ export type Database = {
           url?: string
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "channels_default_location_id_fkey"
+            columns: ["default_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       locations: {
         Row: {
