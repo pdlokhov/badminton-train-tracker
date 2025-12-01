@@ -161,7 +161,154 @@ function findLocation(text: string, knownLocations: Location[]): { name: string;
   return null
 }
 
+// Определяет, является ли сообщение недельным расписанием
+function isWeeklySchedule(text: string): boolean {
+  // Проверяем ключевые слова
+  const hasWeeklyKeywords = /(?:на\s+)?(?:следующ[уюа]+|текущ[уюа]+)\s+недел[юу]|расписание\s+(?:на\s+)?недел[юу]/i.test(text)
+  
+  // Проверяем наличие нескольких дней недели
+  const dayNames = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+  const foundDays = dayNames.filter(day => new RegExp(day, 'i').test(text))
+  
+  // Проверяем наличие нескольких дат в формате (DD.MM)
+  const dateMatches = text.match(/\((\d{1,2}\.\d{1,2})\)/g)
+  
+  return hasWeeklyKeywords || foundDays.length >= 2 || (dateMatches !== null && dateMatches.length >= 2)
+}
+
+// Парсит недельное расписание и возвращает массив тренировок
+function parseWeeklySchedule(text: string, messageId: string, knownLocations: Location[]): ParsedTraining[] {
+  console.log(`Parsing weekly schedule for message ${messageId}`)
+  
+  const trainings: ParsedTraining[] = []
+  
+  // Извлекаем общие цены из текста
+  const groupPriceMatch = text.match(/стоимость\s+(?:групповых|группов\w*)\s+тренировок\s*[-–—:]\s*(\d+)/i)
+  const gamePriceMatch = text.match(/стоимость\s+игровых\s+тренировок\s*[-–—:]\s*(\d+)/i)
+  const groupPrice = groupPriceMatch ? parseInt(groupPriceMatch[1]) : null
+  const gamePrice = gamePriceMatch ? parseInt(gamePriceMatch[1]) : null
+  
+  console.log(`Extracted prices: group=${groupPrice}, game=${gamePrice}`)
+  
+  // Разбиваем текст по дням недели с датой
+  // Паттерн: эмодзи (опционально) + день недели + (DD.MM)
+  const dayBlockRegex = /(?:[⭐️😀☄️💌🤙🔥❤️💙💚💛💜🧡🖤🤍🤎💖💗💓💞💕💟❣️💔❤️‍🔥❤️‍🩹]+\s*)?([А-Яа-я]+)\s*\((\d{1,2}\.\d{1,2})\)([\s\S]*?)(?=(?:[⭐️😀☄️💌🤙🔥❤️💙💚💛💜🧡🖤🤍🤎💖💗💓💞💕💟❣️💔❤️‍🔥❤️‍🩹]+\s*)?[А-Яа-я]+\s*\(\d{1,2}\.\d{1,2}\)|$)/g
+  
+  let match
+  while ((match = dayBlockRegex.exec(text)) !== null) {
+    const dayName = match[1].trim()
+    const dateStr = match[2]
+    const dayContent = match[3].trim()
+    
+    // Парсим дату
+    const [day, month] = dateStr.split('.').map(d => d.padStart(2, '0'))
+    const currentYear = new Date().getFullYear()
+    const currentMonth = new Date().getMonth() + 1
+    const parsedMonth = parseInt(month)
+    const year = parsedMonth < currentMonth - 1 ? currentYear + 1 : currentYear
+    const date = `${year}-${month}-${day}`
+    
+    console.log(`Processing day: ${dayName} (${dateStr}) -> ${date}`)
+    console.log(`Day content: ${dayContent.substring(0, 100)}...`)
+    
+    // Разбиваем содержимое дня на тренировки
+    // Паттерн: строка с локацией и временем
+    const trainingBlocks = dayContent.split(/\n\s*\n/)
+    
+    let trainingIndex = 0
+    for (const block of trainingBlocks) {
+      if (!block.trim()) continue
+      
+      console.log(`\nProcessing training block:\n${block}`)
+      
+      // Извлекаем время и локацию из первой строки
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length === 0) continue
+      
+      const firstLine = lines[0]
+      
+      // Паттерн: "Локация время" или "Локация, время"
+      // Пример: "Динамит 17:00 - 18:30" или "Питерленд, 21:00 - 22:30"
+      const timeMatch = firstLine.match(/(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})/)
+      if (!timeMatch) {
+        console.log('No time found in first line, skipping')
+        continue
+      }
+      
+      const time_start = timeMatch[1]
+      const time_end = timeMatch[2]
+      
+      // Извлекаем локацию (всё до времени)
+      const locationText = firstLine.substring(0, timeMatch.index).trim().replace(/[,،]/g, '').trim()
+      const locationResult = findLocation(locationText, knownLocations)
+      
+      console.log(`Extracted: location="${locationText}", time=${time_start}-${time_end}`)
+      
+      // Извлекаем тренера
+      let coach: string | null = null
+      const coachLine = lines.find(l => /тренер/i.test(l))
+      if (coachLine) {
+        const coachMatch = coachLine.match(/тренер\s*[-–—:]\s*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i)
+        if (coachMatch) {
+          coach = coachMatch[1]
+          console.log(`Found coach: ${coach}`)
+        }
+      }
+      
+      // Определяем тип тренировки из всего блока
+      const type = parseTrainingType(block)
+      console.log(`Training type: ${type}`)
+      
+      // Определяем цену на основе типа
+      let price: number | null = null
+      if (type === 'игровая') {
+        price = gamePrice
+      } else if (type === 'групповая' || type === 'детская группа') {
+        price = groupPrice
+      }
+      
+      // Извлекаем уровень
+      let level: string | null = null
+      const levelMatch = block.match(/(?:уровень|level|ур\.?)\s*:?\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
+      if (levelMatch) {
+        level = normalizeLevel(levelMatch[1])
+      }
+      
+      // Создаём запись тренировки
+      const training: ParsedTraining = {
+        title: `${type || 'Тренировка'} ${level || ''}`.trim(),
+        date,
+        time_start,
+        time_end,
+        coach,
+        level,
+        type,
+        price,
+        location: locationResult?.name || locationText || null,
+        location_id: locationResult?.id || null,
+        description: lines.slice(1).join(' ') || null,
+        raw_text: block,
+        message_id: `${messageId}_${dayName}_${trainingIndex}`,
+        spots: null
+      }
+      
+      trainings.push(training)
+      trainingIndex++
+      
+      console.log(`Added training: ${training.title} at ${training.time_start}-${training.time_end}`)
+    }
+  }
+  
+  console.log(`Weekly schedule parsing complete: ${trainings.length} trainings extracted`)
+  return trainings
+}
+
 function parseTrainingFromText(text: string, messageId: string, knownLocations: Location[]): ParsedTraining | null {
+  // Проверяем, является ли это недельным расписанием
+  if (isWeeklySchedule(text)) {
+    console.log(`Detected weekly schedule in message ${messageId}`)
+    return null // Вернём null, чтобы вызывающая функция знала, что нужно использовать другой метод
+  }
   // ШАГ 1: Проверяем наличие валидной даты DD.MM
   const dateCheck = containsTrainingDate(text)
   if (!dateCheck.valid) {
@@ -925,6 +1072,33 @@ Deno.serve(async (req) => {
         totalParsed += messages.length
         
         for (const msg of messages) {
+          // Сначала проверяем, не является ли это недельным расписанием
+          if (isWeeklySchedule(msg.text)) {
+            console.log(`Processing weekly schedule message ${msg.messageId}`)
+            const weeklyTrainings = parseWeeklySchedule(msg.text, msg.messageId, knownLocations)
+            
+            for (const training of weeklyTrainings) {
+              const { error: upsertError } = await supabase
+                .from('trainings')
+                .upsert({
+                  channel_id: channel.id,
+                  ...training,
+                  location_id: training.location_id || null
+                }, {
+                  onConflict: 'channel_id,message_id'
+                })
+              
+              if (upsertError) {
+                console.error(`Error upserting training ${training.message_id}:`, upsertError)
+                totalSkipped++
+              } else {
+                totalAdded++
+              }
+            }
+            continue
+          }
+          
+          // Обычный парсинг одиночной тренировки
           const training = parseTrainingFromText(msg.text, msg.messageId, knownLocations)
           
           // Пропускаем если парсинг не удался (нет валидной даты)
