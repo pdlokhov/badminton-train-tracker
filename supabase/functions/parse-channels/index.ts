@@ -58,6 +58,8 @@ interface WeeklySlot {
   type: string | null
   level: string | null
   description: string
+  location: string | null  // Название локации
+  location_id: string | null  // ID локации
 }
 
 // Карта месяцев для парсинга дат
@@ -149,10 +151,35 @@ function parseSlotLevel(text: string): string | null {
   return null
 }
 
-// Парсинг слотов по дням недели
-function parseWeeklySlots(text: string): WeeklySlot[] {
+// Парсинг слотов по дням недели с отслеживанием локации
+function parseWeeklySlots(text: string, knownLocations: Location[]): WeeklySlot[] {
   const slots: WeeklySlot[] = []
   const textLower = text.toLowerCase()
+  
+  // Находим все упоминания локаций в тексте с их позициями
+  const locationPositions: { location: Location; position: number }[] = []
+  for (const location of knownLocations) {
+    // Ищем по имени локации
+    let pos = textLower.indexOf(location.name.toLowerCase())
+    if (pos !== -1) {
+      locationPositions.push({ location, position: pos })
+    }
+    
+    // Ищем по алиасам
+    if (location.aliases) {
+      for (const alias of location.aliases) {
+        pos = textLower.indexOf(alias.toLowerCase())
+        if (pos !== -1) {
+          locationPositions.push({ location, position: pos })
+        }
+      }
+    }
+  }
+  
+  // Сортируем локации по позиции
+  locationPositions.sort((a, b) => a.position - b.position)
+  
+  console.log(`Found ${locationPositions.length} location mentions in text`)
   
   // Определяем позиции всех дней недели
   const dayPositions: { day: string; dayIndex: number; position: number }[] = []
@@ -172,6 +199,7 @@ function parseWeeklySlots(text: string): WeeklySlot[] {
     const current = dayPositions[i]
     const nextPos = i < dayPositions.length - 1 ? dayPositions[i + 1].position : text.length
     const section = text.slice(current.position, nextPos)
+    const sectionStartPos = current.position
     
     // Ищем все времена в секции
     const timeRegex = /(\d{1,2}:\d{2})\s*[-–—]?\s*(\d{1,2}:\d{2})?/g
@@ -180,6 +208,17 @@ function parseWeeklySlots(text: string): WeeklySlot[] {
     while ((timeMatch = timeRegex.exec(section)) !== null) {
       const timeStart = timeMatch[1]
       const timeEnd = timeMatch[2] || null
+      const slotPosition = sectionStartPos + timeMatch.index
+      
+      // Находим активную локацию для этого слота (последняя локация перед слотом)
+      let activeLocation: Location | null = null
+      for (const locPos of locationPositions) {
+        if (locPos.position < slotPosition) {
+          activeLocation = locPos.location
+        } else {
+          break
+        }
+      }
       
       // Извлекаем описание после времени (до следующего времени или конца секции)
       const afterTime = section.slice(timeMatch.index + timeMatch[0].length)
@@ -197,7 +236,9 @@ function parseWeeklySlots(text: string): WeeklySlot[] {
         timeEnd,
         type,
         level,
-        description: description.slice(0, 100) // Ограничиваем длину
+        description: description.slice(0, 100), // Ограничиваем длину
+        location: activeLocation?.name || null,
+        location_id: activeLocation?.id || null
       })
     }
   }
@@ -215,7 +256,6 @@ function generateTrainingsFromWeekly(
   knownLocations: Location[]
 ): ParsedTraining[] {
   const trainings: ParsedTraining[] = []
-  const locationResult = findLocation(text, knownLocations)
   
   // Проходим по каждому дню в диапазоне
   const currentDate = new Date(dateRange.startDate)
@@ -240,8 +280,8 @@ function generateTrainingsFromWeekly(
         level: slot.level,
         type: slot.type,
         price: null,
-        location: locationResult?.name || null,
-        location_id: locationResult?.id || null,
+        location: slot.location, // Используем локацию из слота
+        location_id: slot.location_id, // Используем location_id из слота
         description: slot.description || null,
         raw_text: text,
         message_id: `${messageId}_${dateStr}_${slot.timeStart}`,
@@ -268,10 +308,16 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
   
   console.log(`Message ${messageId}: date range = ${dateRange.startDate.toISOString()} - ${dateRange.endDate.toISOString()}`)
   
-  const slots = parseWeeklySlots(text)
+  const slots = parseWeeklySlots(text, knownLocations)
   if (slots.length === 0) {
     console.log(`Message ${messageId}: no slots found`)
     return []
+  }
+  
+  // Выводим информацию о найденных локациях для отладки
+  const uniqueLocations = [...new Set(slots.map(s => s.location).filter(Boolean))]
+  if (uniqueLocations.length > 0) {
+    console.log(`Found locations in slots: ${uniqueLocations.join(', ')}`)
   }
   
   return generateTrainingsFromWeekly(text, dateRange, slots, messageId, knownLocations)
