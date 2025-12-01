@@ -10,7 +10,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { isAdmin } = useAuth();
 
   const handleContactDeveloper = () => {
-    window.open("https://t.me/your_developer_username", "_blank");
+    window.open("https://t.me/Lokhof", "_blank");
   };
 
   return (
