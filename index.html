@@ -1,34 +1,78 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vesbadminton.ru</title>
-    <meta name="description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.">
+    <title>Тренировки по бадминтону в Санкт-Петербурге | vesbadminton.ru</title>
+    <meta name="description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом. Расписание, цены, уровни подготовки.">
+    <meta name="keywords" content="бадминтон, тренировки, Санкт-Петербург, СПБ, бадминтон СПБ, секция бадминтона, занятия бадминтоном">
     <meta name="author" content="lokhof" />
-
     
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://vesbadminton.ru/" />
     
+    <!-- Geo tags for Yandex -->
+    <meta name="geo.region" content="RU-SPE" />
+    <meta name="geo.placename" content="Санкт-Петербург" />
+    <meta name="geo.position" content="59.9343;30.3351" />
+    <meta name="ICBM" content="59.9343, 30.3351" />
+    
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://vesbadminton.ru/" />
+    <meta property="og:site_name" content="vesbadminton.ru" />
+    <meta property="og:title" content="Тренировки по бадминтону в Санкт-Петербурге">
+    <meta property="og:description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.">
     <meta property="og:image" content="https://vesbadminton.ru/og-image.png">
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lokhof" />
+    <meta name="twitter:title" content="Тренировки по бадминтону в Санкт-Петербурге">
+    <meta name="twitter:description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.">
     <meta name="twitter:image" content="https://vesbadminton.ru/og-image.png">
     
-  
-  
-  
-  
-  
-  
-  
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <meta property="og:title" content="vesbadminton.ru">
-  <meta name="twitter:title" content="vesbadminton.ru">
-  <meta property="og:description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.">
-  <meta name="twitter:description" content="Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.">
-</head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png">
+    
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "vesbadminton.ru",
+      "url": "https://vesbadminton.ru/",
+      "description": "Тренировки по бадминтону в Санкт-Петербурге. Найди удобную тренировку рядом с домом.",
+      "inLanguage": "ru-RU",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://vesbadminton.ru/?search={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SportsActivityLocation",
+      "name": "Бадминтон в Санкт-Петербурге",
+      "description": "Агрегатор тренировок по бадминтону в Санкт-Петербурге",
+      "url": "https://vesbadminton.ru/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Санкт-Петербург",
+        "addressCountry": "RU"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "59.9343",
+        "longitude": "30.3351"
+      },
+      "sport": "Бадминтон"
+    }
+    </script>
+  </head>
 
   <body>
     <div id="root"></div>
