@@ -1,4 +1,5 @@
 interface MobileTrainingItemProps {
+  id: string;
   timeStart: string | null;
   timeEnd: string | null;
   type: string | null;
@@ -7,10 +8,11 @@ interface MobileTrainingItemProps {
   clubName: string | null;
   price: number | null;
   spots: number | null;
-  onClick?: () => void;
+  onClick?: (id: string, clubName: string, type: string | null) => void;
 }
 
 export function MobileTrainingItem({
+  id,
   timeStart,
   timeEnd,
   type,
@@ -40,9 +42,13 @@ const formatTime = (start: string | null, end: string | null) => {
     return `${spots} мест`;
   };
 
+  const handleClick = () => {
+    onClick?.(id, clubName || "", type);
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className="flex cursor-pointer items-start justify-between border-b border-border py-4 last:border-b-0"
     >
       <div className="flex-1 min-w-0">

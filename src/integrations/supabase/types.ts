@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_daily: {
+        Row: {
+          avg_session_duration: number | null
+          bounce_rate: number | null
+          created_at: string
+          date: string
+          device_breakdown: Json | null
+          id: string
+          new_visitors: number | null
+          page_views: number | null
+          peak_hours: Json | null
+          popular_channels: Json | null
+          popular_levels: Json | null
+          popular_types: Json | null
+          returning_visitors: number | null
+          search_queries: Json | null
+          telegram_clicks: number | null
+          training_views: Json | null
+          unique_visitors: number | null
+          updated_at: string
+        }
+        Insert: {
+          avg_session_duration?: number | null
+          bounce_rate?: number | null
+          created_at?: string
+          date: string
+          device_breakdown?: Json | null
+          id?: string
+          new_visitors?: number | null
+          page_views?: number | null
+          peak_hours?: Json | null
+          popular_channels?: Json | null
+          popular_levels?: Json | null
+          popular_types?: Json | null
+          returning_visitors?: number | null
+          search_queries?: Json | null
+          telegram_clicks?: number | null
+          training_views?: Json | null
+          unique_visitors?: number | null
+          updated_at?: string
+        }
+        Update: {
+          avg_session_duration?: number | null
+          bounce_rate?: number | null
+          created_at?: string
+          date?: string
+          device_breakdown?: Json | null
+          id?: string
+          new_visitors?: number | null
+          page_views?: number | null
+          peak_hours?: Json | null
+          popular_channels?: Json | null
+          popular_levels?: Json | null
+          popular_types?: Json | null
+          returning_visitors?: number | null
+          search_queries?: Json | null
+          telegram_clicks?: number | null
+          training_views?: Json | null
+          unique_visitors?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      analytics_events: {
+        Row: {
+          created_at: string
+          device_type: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          page_path: string | null
+          referrer: string | null
+          session_id: string
+          user_agent: string | null
+          visitor_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          page_path?: string | null
+          referrer?: string | null
+          session_id: string
+          user_agent?: string | null
+          visitor_id: string
+        }
+        Update: {
+          created_at?: string
+          device_type?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          page_path?: string | null
+          referrer?: string | null
+          session_id?: string
+          user_agent?: string | null
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       channels: {
         Row: {
           created_at: string

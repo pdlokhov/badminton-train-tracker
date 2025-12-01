@@ -1,6 +1,7 @@
 import { Users } from "lucide-react";
 
 interface TrainingCardProps {
+  id: string;
   timeStart: string | null;
   timeEnd: string | null;
   type: string | null;
@@ -10,9 +11,11 @@ interface TrainingCardProps {
   price: number | null;
   spots: number | null;
   telegramUrl?: string;
+  onTelegramClick?: (id: string, clubName: string, type: string | null) => void;
 }
 
 export function TrainingCard({
+  id,
   timeStart,
   timeEnd,
   type,
@@ -22,6 +25,7 @@ export function TrainingCard({
   price,
   spots,
   telegramUrl,
+  onTelegramClick,
 }: TrainingCardProps) {
   const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
@@ -38,6 +42,7 @@ export function TrainingCard({
 
   const handleClick = () => {
     if (telegramUrl) {
+      onTelegramClick?.(id, clubName || "", type);
       window.open(telegramUrl, "_blank");
     }
   };

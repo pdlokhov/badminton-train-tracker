@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { SearchBar } from "./SearchBar";
 import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
@@ -45,6 +46,7 @@ interface TrainingsListProps {
 
 export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsListProps) {
   const isMobile = useIsMobile();
+  const { trackPageView, trackTelegramRedirect, trackSearch, trackDateChange } = useAnalytics();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -78,6 +80,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
 
   useEffect(() => {
     fetchChannels();
+    trackPageView();
   }, []);
 
   const fetchTrainings = async () => {
@@ -333,12 +336,21 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
       {/* Search */}
       <SearchBar
         value={searchQuery}
-        onChange={setSearchQuery}
+        onChange={(value) => {
+          setSearchQuery(value);
+          trackSearch(value);
+        }}
       />
 
       {/* Header with date picker and count */}
       <div className="flex items-center gap-2">
-        <DatePicker date={selectedDate} onDateChange={setSelectedDate} />
+        <DatePicker 
+          date={selectedDate} 
+          onDateChange={(date) => {
+            setSelectedDate(date);
+            trackDateChange(format(date, "yyyy-MM-dd"));
+          }} 
+        />
         <span className="text-muted-foreground">•</span>
         <span className="text-base text-muted-foreground">{sortedTrainings.length} тренировок</span>
       </div>
@@ -359,6 +371,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
           {sortedTrainings.map((training) => (
             <MobileTrainingItem
               key={training.id}
+              id={training.id}
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
@@ -367,9 +380,12 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               clubName={training.channels?.name || null}
               price={training.price}
               spots={training.spots}
-              onClick={() => {
+              onClick={(id, clubName, type) => {
                 const url = getTelegramUrl(training);
-                if (url) window.open(url, "_blank");
+                if (url) {
+                  trackTelegramRedirect(id, clubName, type);
+                  window.open(url, "_blank");
+                }
               }}
             />
           ))}
@@ -380,6 +396,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
           {sortedTrainings.map((training) => (
             <TrainingCard
               key={training.id}
+              id={training.id}
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
@@ -389,6 +406,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               price={training.price}
               spots={training.spots}
               telegramUrl={getTelegramUrl(training)}
+              onTelegramClick={trackTelegramRedirect}
             />
           ))}
         </div>
