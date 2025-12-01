@@ -1,4 +1,4 @@
-import { ExternalLink, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
 interface TrainingCardProps {
   timeStart: string | null;
@@ -10,7 +10,6 @@ interface TrainingCardProps {
   price: number | null;
   spots: number | null;
   telegramUrl?: string;
-  onClick?: () => void;
 }
 
 export function TrainingCard({
@@ -23,7 +22,6 @@ export function TrainingCard({
   price,
   spots,
   telegramUrl,
-  onClick,
 }: TrainingCardProps) {
   const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
@@ -38,9 +36,15 @@ export function TrainingCard({
     return `${price} ₽`;
   };
 
+  const handleClick = () => {
+    if (telegramUrl) {
+      window.open(telegramUrl, "_blank");
+    }
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className="group flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md hover:border-primary/30"
     >
       {/* Header: time + price */}
@@ -48,24 +52,11 @@ export function TrainingCard({
         <p className="text-lg font-semibold text-foreground">
           {formatTime(timeStart, timeEnd)}
         </p>
-        <div className="flex items-center gap-2">
-          {price !== null && (
-            <span className="text-base font-semibold text-foreground">
-              {formatPrice(price)}
-            </span>
-          )}
-          {telegramUrl && (
-            <a
-              href={telegramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-primary hover:text-primary/80 transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          )}
-        </div>
+        {price !== null && (
+          <span className="text-base font-semibold text-foreground">
+            {formatPrice(price)}
+          </span>
+        )}
       </div>
 
       {/* Type badge + level badge + spots */}
