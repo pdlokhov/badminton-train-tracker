@@ -332,6 +332,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               location={getLocation(training)}
               clubName={training.channels?.name || null}
               price={training.price}
+              spots={training.spots}
               telegramUrl={getTelegramUrl(training)}
             />
           ))}
