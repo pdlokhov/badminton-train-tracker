@@ -163,6 +163,24 @@ export type Database = {
           },
         ]
       }
+      disclaimer_acknowledgments: {
+        Row: {
+          acknowledged_at: string
+          id: string
+          visitor_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          id?: string
+          visitor_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          id?: string
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           address: string | null

@@ -11,6 +11,7 @@ import { Header } from "@/components/Header";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
+import { DisclaimerDialog } from "@/components/DisclaimerDialog";
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -188,6 +189,9 @@ const Index = () => {
 
       {/* Cookie Consent Banner */}
       <CookieConsent />
+
+      {/* Disclaimer Dialog */}
+      <DisclaimerDialog />
     </div>
   );
 };
