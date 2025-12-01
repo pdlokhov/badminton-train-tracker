@@ -34,8 +34,9 @@ interface Training {
     default_coach: string | null; 
     username: string;
     default_location_id: string | null;
-    default_location?: { name: string } | null;
+    default_location?: { name: string; address: string | null } | null;
   };
+  location_data?: { name: string; address: string | null } | null;
 }
 
 interface TrainingsListProps {
@@ -83,7 +84,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name, default_coach, username, default_location_id, default_location:locations(name))")
+      .select("*, channels(name, default_coach, username, default_location_id, default_location:locations(name, address)), location_data:locations(name, address)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
 
@@ -226,11 +227,23 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     return undefined;
   };
 
-  // Get location: use training's location, or fallback to channel's default location
+  // Get location: use training's location_data, or location text, or fallback to channel's default location
   const getLocation = (training: Training) => {
-    if (training.location) return training.location;
-    if (training.channels?.default_location?.name) return training.channels.default_location.name;
-    return null;
+    let locationName: string | null = null;
+    let locationAddress: string | null = null;
+    
+    if (training.location_data) {
+      locationName = training.location_data.name;
+      locationAddress = training.location_data.address;
+    } else if (training.location) {
+      locationName = training.location;
+    } else if (training.channels?.default_location) {
+      locationName = training.channels.default_location.name;
+      locationAddress = training.channels.default_location.address;
+    }
+    
+    if (!locationName) return null;
+    return locationAddress ? `${locationName}, ${locationAddress}` : locationName;
   };
 
   return (
