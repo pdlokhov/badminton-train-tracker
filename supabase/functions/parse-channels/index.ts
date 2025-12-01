@@ -973,6 +973,10 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
+    // Parse request body to get force parameter
+    const { force = false } = await req.json().catch(() => ({}))
+    console.log(`Force mode: ${force ? 'ON' : 'OFF'}`)
+
     // Verify admin role server-side
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -1057,18 +1061,22 @@ Deno.serve(async (req) => {
         for (const img of images) {
           console.log(`\nProcessing image from message ${img.messageId}`)
           
-          // Проверяем, было ли изображение уже обработано
-          const { data: existingRecord } = await supabase
-            .from('processed_images')
-            .select('id, trainings_count')
-            .eq('channel_id', channel.id)
-            .eq('message_id', img.messageId)
-            .single()
-          
-          if (existingRecord) {
-            console.log(`Image ${img.messageId} already processed (${existingRecord.trainings_count} trainings), skipping AI analysis`)
-            totalFromCache++
-            continue
+          // Проверяем, было ли изображение уже обработано (если не force режим)
+          if (!force) {
+            const { data: existingRecord } = await supabase
+              .from('processed_images')
+              .select('id, trainings_count')
+              .eq('channel_id', channel.id)
+              .eq('message_id', img.messageId)
+              .single()
+            
+            if (existingRecord) {
+              console.log(`Image ${img.messageId} already processed (${existingRecord.trainings_count} trainings), skipping AI analysis`)
+              totalFromCache++
+              continue
+            }
+          } else {
+            console.log(`Force mode enabled: re-processing image ${img.messageId}`)
           }
           
           const scheduleResult = await analyzeScheduleImage(img.imageUrl)
