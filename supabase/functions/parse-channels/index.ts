@@ -896,6 +896,67 @@ function findLocationByImageName(locationName: string | null, knownLocations: Lo
   return { name: locationName, id: '' }
 }
 
+// ================== SMART UPSERT HELPER ==================
+async function smartUpsertTraining(supabase: any, trainingRecord: any): Promise<{ success: boolean; error?: any }> {
+  // Check if training already exists based on actual characteristics
+  const { data: existing } = await supabase
+    .from('trainings')
+    .select('id, price, coach, type, level, title, description')
+    .eq('channel_id', trainingRecord.channel_id)
+    .eq('date', trainingRecord.date)
+    .eq('time_start', trainingRecord.time_start)
+    .is('time_end', trainingRecord.time_end)
+    .is('location', trainingRecord.location)
+    .maybeSingle()
+
+  if (existing) {
+    // Update only if new data is more complete (not overwriting non-null with null)
+    const updates: Record<string, any> = { 
+      message_id: trainingRecord.message_id,
+      updated_at: new Date().toISOString(),
+      raw_text: trainingRecord.raw_text
+    }
+    
+    // Update fields only if new data is not null and old data was null
+    if (trainingRecord.price !== null && trainingRecord.price !== undefined && !existing.price) {
+      updates.price = trainingRecord.price
+    }
+    if (trainingRecord.coach && !existing.coach) {
+      updates.coach = trainingRecord.coach
+    }
+    if (trainingRecord.type && !existing.type) {
+      updates.type = trainingRecord.type
+    }
+    if (trainingRecord.level && !existing.level) {
+      updates.level = trainingRecord.level
+    }
+    if (trainingRecord.title && !existing.title) {
+      updates.title = trainingRecord.title
+    }
+    if (trainingRecord.description && !existing.description) {
+      updates.description = trainingRecord.description
+    }
+    
+    const { error } = await supabase.from('trainings').update(updates).eq('id', existing.id)
+    if (error) {
+      console.error(`Error updating training ${existing.id}:`, error.message)
+      return { success: false, error }
+    }
+    console.log(`Updated existing training ${existing.id}`)
+    return { success: true }
+  } else {
+    // Insert new record
+    const { error } = await supabase.from('trainings').insert(trainingRecord)
+    if (error) {
+      console.error(`Error inserting training:`, error.message)
+      return { success: false, error }
+    }
+    console.log(`Inserted new training`)
+    return { success: true }
+  }
+}
+
+// ================== MAIN DENO SERVE HANDLER ==================
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -1059,14 +1120,9 @@ Deno.serve(async (req) => {
                 description: scheduleResult.location || null
               }
               
-              const { error: upsertError } = await supabase
-                .from('trainings')
-                .upsert(trainingRecord, {
-                  onConflict: 'channel_id,message_id'
-                })
+              const result = await smartUpsertTraining(supabase, trainingRecord)
               
-              if (upsertError) {
-                console.error(`Error upserting training:`, upsertError)
+              if (!result.success) {
                 totalSkipped++
               } else {
                 totalAdded++
@@ -1103,18 +1159,13 @@ Deno.serve(async (req) => {
             const weeklyTrainings = parseWeeklySchedule(msg.text, msg.messageId, knownLocations)
             
             for (const training of weeklyTrainings) {
-              const { error: upsertError } = await supabase
-                .from('trainings')
-                .upsert({
-                  channel_id: channel.id,
-                  ...training,
-                  location_id: training.location_id || null
-                }, {
-                  onConflict: 'channel_id,message_id'
-                })
+              const result = await smartUpsertTraining(supabase, {
+                channel_id: channel.id,
+                ...training,
+                location_id: training.location_id || null
+              })
               
-              if (upsertError) {
-                console.error(`Error upserting training ${training.message_id}:`, upsertError)
+              if (!result.success) {
                 totalSkipped++
               } else {
                 totalAdded++
@@ -1132,18 +1183,13 @@ Deno.serve(async (req) => {
             continue
           }
           
-          const { error: upsertError } = await supabase
-            .from('trainings')
-            .upsert({
-              channel_id: channel.id,
-              ...training,
-              location_id: training.location_id || null
-            }, {
-              onConflict: 'channel_id,message_id'
-            })
+          const result = await smartUpsertTraining(supabase, {
+            channel_id: channel.id,
+            ...training,
+            location_id: training.location_id || null
+          })
           
-          if (upsertError) {
-            console.error(`Error upserting training ${msg.messageId}:`, upsertError)
+          if (!result.success) {
             totalSkipped++
           } else {
             totalAdded++
