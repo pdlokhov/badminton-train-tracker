@@ -6,7 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink, Image, FileText, Pencil } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -42,7 +49,13 @@ interface Channel {
   is_active: boolean;
   parse_images: boolean;
   default_coach: string | null;
+  default_location_id: string | null;
   created_at: string;
+}
+
+interface Location {
+  id: string;
+  name: string;
 }
 
 interface ChannelListProps {
@@ -51,10 +64,12 @@ interface ChannelListProps {
 
 export function ChannelList({ refreshTrigger }: ChannelListProps) {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editName, setEditName] = useState("");
   const [editDefaultCoach, setEditDefaultCoach] = useState("");
+  const [editDefaultLocationId, setEditDefaultLocationId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -79,8 +94,23 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
     }
   };
 
+  const fetchLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+      setLocations(data || []);
+    } catch (error) {
+      console.error("Error fetching locations:", error);
+    }
+  };
+
   useEffect(() => {
     fetchChannels();
+    fetchLocations();
   }, [refreshTrigger]);
 
   const handleToggleActive = async (id: string, isActive: boolean) => {
@@ -136,6 +166,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
     setEditingChannel(channel);
     setEditName(channel.name);
     setEditDefaultCoach(channel.default_coach || "");
+    setEditDefaultLocationId(channel.default_location_id);
   };
 
   const handleSaveEdit = async () => {
@@ -148,6 +179,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
         .update({
           name: editName.trim(),
           default_coach: editDefaultCoach.trim() || null,
+          default_location_id: editDefaultLocationId,
         })
         .eq("id", editingChannel.id);
 
@@ -156,7 +188,12 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
       setChannels((prev) =>
         prev.map((ch) =>
           ch.id === editingChannel.id
-            ? { ...ch, name: editName.trim(), default_coach: editDefaultCoach.trim() || null }
+            ? { 
+                ...ch, 
+                name: editName.trim(), 
+                default_coach: editDefaultCoach.trim() || null,
+                default_location_id: editDefaultLocationId,
+              }
             : ch
         )
       );
@@ -316,6 +353,31 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
               />
               <p className="text-xs text-muted-foreground">
                 Если указан, будет использоваться для всех тренировок этого клуба, где тренер не указан
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Локация по умолчанию</Label>
+              <Select
+                value={editDefaultLocationId || "none"}
+                onValueChange={(v) => setEditDefaultLocationId(v === "none" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите локацию" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Не выбрана</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-3 w-3" />
+                        {loc.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Если указана, будет отображаться для всех тренировок этого клуба
               </p>
             </div>
           </div>

@@ -25,10 +25,17 @@ interface Training {
   level: string | null;
   price: number | null;
   location: string | null;
+  location_id: string | null;
   description: string | null;
   raw_text: string;
   spots: number | null;
-  channels?: { name: string; default_coach: string | null; username: string };
+  channels?: { 
+    name: string; 
+    default_coach: string | null; 
+    username: string;
+    default_location_id: string | null;
+    default_location?: { name: string } | null;
+  };
 }
 
 interface TrainingsListProps {
@@ -76,7 +83,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name, default_coach, username)")
+      .select("*, channels(name, default_coach, username, default_location_id, default_location:locations(name))")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
 
@@ -219,6 +226,13 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
     return undefined;
   };
 
+  // Get location: use training's location, or fallback to channel's default location
+  const getLocation = (training: Training) => {
+    if (training.location) return training.location;
+    if (training.channels?.default_location?.name) return training.channels.default_location.name;
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       {/* Search and Filters */}
@@ -282,7 +296,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
-              location={training.location}
+              location={getLocation(training)}
               clubName={training.channels?.name || null}
               price={training.price}
               spots={training.spots}
@@ -302,7 +316,7 @@ export function TrainingsList({ refreshTrigger }: TrainingsListProps) {
               timeStart={training.time_start}
               timeEnd={training.time_end}
               type={training.type}
-              location={training.location}
+              location={getLocation(training)}
               clubName={training.channels?.name || null}
               price={training.price}
               telegramUrl={getTelegramUrl(training)}
