@@ -1,14 +1,31 @@
+# Yandex
+User-agent: Yandexbot
+Allow: /
+Clean-param: utm_source&utm_medium&utm_campaign&ref
+
+# Google
 User-agent: Googlebot
 Allow: /
 
+# Bing
 User-agent: Bingbot
 Allow: /
 
+# Social media bots
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
+# All other bots
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /auth
+
+# Host directive (important for Yandex)
+Host: https://vesbadminton.ru
+
+# Sitemap
+Sitemap: https://vesbadminton.ru/sitemap.xml
