@@ -89,7 +89,7 @@ const Index = () => {
           {/* Hero Section */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-foreground md:text-4xl">
-              Тренировки сегодня в СПБ
+              Тренировки по бадминтону в Санкт-Петербурге
             </h1>
           </div>
           
