@@ -408,31 +408,37 @@ export function AnalyticsDashboard() {
           title="Просмотры"
           value={realtimeMetrics.pageViews}
           icon={Eye}
+          description="Общее количество просмотров страниц. Считается по событиям 'page_view' из analytics_events."
         />
         <MetricCard
           title="Посетители"
           value={realtimeMetrics.uniqueVisitors}
           icon={Users}
+          description="Уникальные посетители за выбранный период. Рассчитывается по уникальным visitor_id из событий."
         />
         <MetricCard
           title="Переходы в TG"
           value={realtimeMetrics.telegramClicks}
           icon={Send}
+          description="Количество переходов в Telegram-каналы. Считается по событиям 'telegram_redirect'."
         />
         <MetricCard
           title="CTR в Telegram"
           value={realtimeMetrics.pageViews > 0 ? `${Math.round((realtimeMetrics.telegramClicks / realtimeMetrics.pageViews) * 100)}%` : "0%"}
           icon={TrendingDown}
+          description="Click-Through Rate — процент пользователей, которые перешли в Telegram. Формула: (переходы в TG / просмотры) × 100%"
         />
         <MetricCard
           title="Ср. время"
           value={formatDuration(realtimeMetrics.avgSessionDuration)}
           icon={Clock}
+          description="Среднее время на сайте за сессию. Рассчитывается как разница между первым и последним событием в каждой сессии."
         />
         <MetricCard
           title="Bounce rate"
           value={`${realtimeMetrics.bounceRate}%`}
           icon={Search}
+          description="Процент отказов — доля сессий, в которых было только одно событие. Формула: (сессии с 1 событием / все сессии) × 100%"
         />
       </div>
 
