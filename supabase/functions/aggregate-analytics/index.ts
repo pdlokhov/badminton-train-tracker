@@ -154,6 +154,53 @@ serve(async (req) => {
       peakHours[hour] = (peakHours[hour] || 0) + 1;
     });
 
+    // Calculate retention rates
+    let retentionD1 = 0;
+    let retentionD7 = 0;
+    let retentionD30 = 0;
+
+    if (newVisitors > 0) {
+      // Get visitor IDs of new visitors for this date
+      const newVisitorIds = Array.from(visitorFirstSeen.keys());
+
+      // Check D+1 retention
+      const d1Start = new Date(new Date(targetDate).getTime() + 86400000).toISOString().split('T')[0];
+      const d1End = new Date(new Date(d1Start).getTime() + 86400000).toISOString().split('T')[0];
+      const { data: d1Events } = await supabase
+        .from('analytics_events')
+        .select('visitor_id')
+        .in('visitor_id', newVisitorIds)
+        .gte('created_at', `${d1Start}T00:00:00.000Z`)
+        .lt('created_at', `${d1End}T00:00:00.000Z`);
+      
+      const d1ReturnedVisitors = new Set(d1Events?.map(e => e.visitor_id) || []).size;
+      retentionD1 = Math.round((d1ReturnedVisitors / newVisitors) * 100 * 100) / 100;
+
+      // Check D+7 retention (within 7 days)
+      const d7End = new Date(new Date(targetDate).getTime() + 7 * 86400000).toISOString().split('T')[0];
+      const { data: d7Events } = await supabase
+        .from('analytics_events')
+        .select('visitor_id')
+        .in('visitor_id', newVisitorIds)
+        .gte('created_at', `${d1Start}T00:00:00.000Z`)
+        .lt('created_at', `${d7End}T23:59:59.999Z`);
+      
+      const d7ReturnedVisitors = new Set(d7Events?.map(e => e.visitor_id) || []).size;
+      retentionD7 = Math.round((d7ReturnedVisitors / newVisitors) * 100 * 100) / 100;
+
+      // Check D+30 retention (within 30 days)
+      const d30End = new Date(new Date(targetDate).getTime() + 30 * 86400000).toISOString().split('T')[0];
+      const { data: d30Events } = await supabase
+        .from('analytics_events')
+        .select('visitor_id')
+        .in('visitor_id', newVisitorIds)
+        .gte('created_at', `${d1Start}T00:00:00.000Z`)
+        .lt('created_at', `${d30End}T23:59:59.999Z`);
+      
+      const d30ReturnedVisitors = new Set(d30Events?.map(e => e.visitor_id) || []).size;
+      retentionD30 = Math.round((d30ReturnedVisitors / newVisitors) * 100 * 100) / 100;
+    }
+
     // Upsert aggregated data
     const aggregatedData = {
       date: targetDate,
@@ -171,6 +218,9 @@ serve(async (req) => {
       bounce_rate: bounceRate,
       device_breakdown: deviceBreakdown,
       peak_hours: peakHours,
+      retention_d1: retentionD1,
+      retention_d7: retentionD7,
+      retention_d30: retentionD30,
       updated_at: new Date().toISOString(),
     };
 

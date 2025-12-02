@@ -28,6 +28,9 @@ export type Database = {
           popular_channels: Json | null
           popular_levels: Json | null
           popular_types: Json | null
+          retention_d1: number | null
+          retention_d30: number | null
+          retention_d7: number | null
           returning_visitors: number | null
           search_queries: Json | null
           telegram_clicks: number | null
@@ -48,6 +51,9 @@ export type Database = {
           popular_channels?: Json | null
           popular_levels?: Json | null
           popular_types?: Json | null
+          retention_d1?: number | null
+          retention_d30?: number | null
+          retention_d7?: number | null
           returning_visitors?: number | null
           search_queries?: Json | null
           telegram_clicks?: number | null
@@ -68,6 +74,9 @@ export type Database = {
           popular_channels?: Json | null
           popular_levels?: Json | null
           popular_types?: Json | null
+          retention_d1?: number | null
+          retention_d30?: number | null
+          retention_d7?: number | null
           returning_visitors?: number | null
           search_queries?: Json | null
           telegram_clicks?: number | null
