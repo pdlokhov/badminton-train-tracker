@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const VISITOR_ID_KEY = "analytics_visitor_id";
 const SESSION_ID_KEY = "analytics_session_id";
@@ -81,7 +81,7 @@ export function isFirstVisit(): boolean {
   return !localStorage.getItem(FIRST_VISIT_KEY);
 }
 
-// Send event to database
+// Send event via edge function
 export async function sendEvent(
   eventType: string,
   eventData: Record<string, unknown> = {}
@@ -95,17 +95,22 @@ export async function sendEvent(
     const sessionId = getOrCreateSessionId();
     const deviceType = getDeviceType();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await supabase.from("analytics_events").insert([{
-      visitor_id: visitorId,
-      session_id: sessionId,
-      event_type: eventType,
-      event_data: eventData as any,
-      page_path: window.location.pathname,
-      referrer: document.referrer || null,
-      user_agent: navigator.userAgent,
-      device_type: deviceType,
-    }]);
+    await fetch(`${SUPABASE_URL}/functions/v1/track-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        visitor_id: visitorId,
+        session_id: sessionId,
+        event_type: eventType,
+        event_data: eventData,
+        page_path: window.location.pathname,
+        referrer: document.referrer || null,
+        user_agent: navigator.userAgent,
+        device_type: deviceType,
+      }),
+    });
   } catch (error) {
     console.error("Analytics error:", error);
   }
