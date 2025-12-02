@@ -905,15 +905,28 @@ function findLocationByImageName(locationName: string | null, knownLocations: Lo
 // ================== SMART UPSERT HELPER ==================
 async function smartUpsertTraining(supabase: any, trainingRecord: any): Promise<{ success: boolean; error?: any }> {
   // Check if training already exists based on actual characteristics
-  const { data: existing } = await supabase
+  let query = supabase
     .from('trainings')
     .select('id, price, coach, type, level, title, description')
     .eq('channel_id', trainingRecord.channel_id)
     .eq('date', trainingRecord.date)
     .eq('time_start', trainingRecord.time_start)
-    .is('time_end', trainingRecord.time_end)
-    .is('location', trainingRecord.location)
-    .maybeSingle()
+
+  // Для time_end: .is() для null, .eq() для значений
+  if (trainingRecord.time_end === null || trainingRecord.time_end === undefined) {
+    query = query.is('time_end', null)
+  } else {
+    query = query.eq('time_end', trainingRecord.time_end)
+  }
+
+  // Для location: .is() для null, .eq() для значений
+  if (trainingRecord.location === null || trainingRecord.location === undefined) {
+    query = query.is('location', null)
+  } else {
+    query = query.eq('location', trainingRecord.location)
+  }
+
+  const { data: existing } = await query.maybeSingle()
 
   if (existing) {
     // Update only if new data is more complete (not overwriting non-null with null)
@@ -1107,6 +1120,7 @@ Deno.serve(async (req) => {
           const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear
           
           let trainingsAddedFromImage = 0
+          const trainingsToUpsert = []
           
           for (const training of scheduleResult.trainings) {
             // Получаем все даты для этого дня недели в текущем и следующем месяце
@@ -1134,14 +1148,27 @@ Deno.serve(async (req) => {
                 description: scheduleResult.location || null
               }
               
-              const result = await smartUpsertTraining(supabase, trainingRecord)
-              
-              if (!result.success) {
-                totalSkipped++
-              } else {
-                totalAdded++
-                trainingsAddedFromImage++
-              }
+              trainingsToUpsert.push(trainingRecord)
+            }
+          }
+          
+          // Batch upsert всех тренировок одним запросом
+          if (trainingsToUpsert.length > 0) {
+            const { data: upserted, error: upsertError } = await supabase
+              .from('trainings')
+              .upsert(trainingsToUpsert, { 
+                onConflict: 'channel_id,date,time_start,time_end,location',
+                ignoreDuplicates: false
+              })
+              .select('id')
+            
+            if (upsertError) {
+              console.error(`Batch upsert error:`, upsertError.message)
+              totalSkipped += trainingsToUpsert.length
+            } else {
+              trainingsAddedFromImage = upserted?.length || trainingsToUpsert.length
+              totalAdded += trainingsAddedFromImage
+              console.log(`Batch upserted ${trainingsAddedFromImage} trainings from image`)
             }
           }
           
@@ -1166,6 +1193,8 @@ Deno.serve(async (req) => {
         const messages = await fetchTelegramChannel(channel.username)
         totalParsed += messages.length
         
+        const trainingsToUpsert = []
+        
         for (const msg of messages) {
           // Сначала проверяем, не является ли это недельным расписанием
           if (isWeeklySchedule(msg.text)) {
@@ -1173,17 +1202,11 @@ Deno.serve(async (req) => {
             const weeklyTrainings = parseWeeklySchedule(msg.text, msg.messageId, knownLocations)
             
             for (const training of weeklyTrainings) {
-              const result = await smartUpsertTraining(supabase, {
+              trainingsToUpsert.push({
                 channel_id: channel.id,
                 ...training,
                 location_id: training.location_id || null
               })
-              
-              if (!result.success) {
-                totalSkipped++
-              } else {
-                totalAdded++
-              }
             }
             continue
           }
@@ -1197,16 +1220,30 @@ Deno.serve(async (req) => {
             continue
           }
           
-          const result = await smartUpsertTraining(supabase, {
+          trainingsToUpsert.push({
             channel_id: channel.id,
             ...training,
             location_id: training.location_id || null
           })
+        }
+        
+        // Batch upsert всех тренировок одним запросом
+        if (trainingsToUpsert.length > 0) {
+          const { data: upserted, error: upsertError } = await supabase
+            .from('trainings')
+            .upsert(trainingsToUpsert, { 
+              onConflict: 'channel_id,date,time_start,time_end,location',
+              ignoreDuplicates: false
+            })
+            .select('id')
           
-          if (!result.success) {
-            totalSkipped++
+          if (upsertError) {
+            console.error(`Batch upsert error for text parsing:`, upsertError.message)
+            totalSkipped += trainingsToUpsert.length
           } else {
-            totalAdded++
+            const upsertedCount = upserted?.length || trainingsToUpsert.length
+            totalAdded += upsertedCount
+            console.log(`Batch upserted ${upsertedCount} trainings from text messages`)
           }
         }
       }
