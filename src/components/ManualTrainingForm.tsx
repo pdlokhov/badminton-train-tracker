@@ -377,15 +377,17 @@ export function ManualTrainingForm({
               name="location_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Локация</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>Локация (необязательно)</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value || undefined}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Выберите локацию" />
+                        <SelectValue placeholder="Выберите локацию или оставьте пустым" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Не выбрано</SelectItem>
                       {locations.map((location) => (
                         <SelectItem key={location.id} value={location.id}>
                           {location.name}
