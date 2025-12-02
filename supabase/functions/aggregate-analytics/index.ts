@@ -113,6 +113,16 @@ serve(async (req) => {
         popularTypes[type] = (popularTypes[type] || 0) + 1;
       });
 
+    // Popular channels
+    const popularChannels: Record<string, number> = {};
+    events
+      .filter(e => e.event_type === 'telegram_redirect')
+      .forEach(event => {
+        const eventData = event.event_data as Record<string, unknown>;
+        const channel = (eventData?.channel_name as string) || 'Неизвестно';
+        popularChannels[channel] = (popularChannels[channel] || 0) + 1;
+      });
+
     // Search queries
     const searchQueries: Record<string, number> = {};
     events
@@ -155,7 +165,7 @@ serve(async (req) => {
       training_views: trainingViews,
       popular_types: popularTypes,
       popular_levels: {},
-      popular_channels: {},
+      popular_channels: popularChannels,
       search_queries: searchQueries,
       avg_session_duration: avgSessionDuration,
       bounce_rate: bounceRate,
