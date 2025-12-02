@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Eye, Users, Send, Clock, TrendingDown, Search, RefreshCw } from "lucide-react";
+import { Eye, Users, Send, Clock, TrendingDown, Search, RefreshCw, UserCheck, CalendarDays } from "lucide-react";
 import { MetricCard } from "./MetricCard";
 import { VisitorsChart } from "./VisitorsChart";
 import { DevicesPieChart } from "./DevicesPieChart";
@@ -12,6 +12,8 @@ import { ChannelTypesTable } from "./ChannelTypesTable";
 import { TopSearchesTable } from "./TopSearchesTable";
 import { DailyVisitorsChart } from "./DailyVisitorsChart";
 import { RetentionTable } from "./RetentionTable";
+import { UserActivityTable } from "./UserActivityTable";
+import { SignupDistributionChart } from "./SignupDistributionChart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +48,11 @@ export function AnalyticsDashboard() {
     telegramClicks: 0,
     avgSessionDuration: 0,
     bounceRate: 0,
+    avgSignupsPerUserPerWeek: 0,
+    avgActiveDaysPerUser: 0,
   });
+  const [userActivity, setUserActivity] = useState<any[]>([]);
+  const [signupDistribution, setSignupDistribution] = useState<any[]>([]);
   const [realtimeStats, setRealtimeStats] = useState({
     todayViews: 0,
     todayVisitors: 0,
@@ -163,12 +169,84 @@ export function AnalyticsDashboard() {
         const avgSessionDuration = sessions.size > 0 ? Math.round(totalDuration / sessions.size) : 0;
         const bounceRate = sessions.size > 0 ? Math.round((bounceSessions / sessions.size) * 100) : 0;
 
+        // Calculate user activity metrics
+        const userStats = new Map<string, {
+          signups: number;
+          dates: Set<string>;
+          trainings: Set<string>;
+        }>();
+
+        events.forEach(event => {
+          if (!userStats.has(event.visitor_id)) {
+            userStats.set(event.visitor_id, {
+              signups: 0,
+              dates: new Set(),
+              trainings: new Set()
+            });
+          }
+          const stats = userStats.get(event.visitor_id)!;
+          
+          if (event.event_type === 'telegram_redirect') {
+            stats.signups++;
+          }
+          if (event.event_type === 'training_click') {
+            const eventData = event.event_data as Record<string, unknown>;
+            const trainingId = eventData?.training_id;
+            if (trainingId) {
+              stats.trainings.add(String(trainingId));
+            }
+          }
+          stats.dates.add(event.created_at.split('T')[0]);
+        });
+
+        // Build user activity array
+        const activityData = Array.from(userStats.entries()).map(([visitor_id, stats]) => ({
+          visitor_id,
+          total_signups: stats.signups,
+          active_days: stats.dates.size,
+          unique_trainings: stats.trainings.size,
+          avg_signups_per_day: stats.dates.size > 0 ? stats.signups / stats.dates.size : 0
+        })).filter(u => u.total_signups > 0);
+
+        setUserActivity(activityData);
+
+        // Calculate distribution buckets
+        const buckets = [
+          { bucket: '1', min: 1, max: 1, users: 0 },
+          { bucket: '2-3', min: 2, max: 3, users: 0 },
+          { bucket: '4-5', min: 4, max: 5, users: 0 },
+          { bucket: '6-10', min: 6, max: 10, users: 0 },
+          { bucket: '11+', min: 11, max: Infinity, users: 0 }
+        ];
+
+        activityData.forEach(user => {
+          const bucket = buckets.find(b => user.total_signups >= b.min && user.total_signups <= b.max);
+          if (bucket) bucket.users++;
+        });
+
+        setSignupDistribution(buckets);
+
+        // Calculate average metrics
+        const totalUsers = activityData.length;
+        const daysInPeriod = Math.ceil((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const weeksInPeriod = daysInPeriod / 7;
+
+        const totalSignups = activityData.reduce((sum, u) => sum + u.total_signups, 0);
+        const totalActiveDays = activityData.reduce((sum, u) => sum + u.active_days, 0);
+
+        const avgSignupsPerUserPerWeek = totalUsers > 0 && weeksInPeriod > 0 
+          ? totalSignups / totalUsers / weeksInPeriod 
+          : 0;
+        const avgActiveDaysPerUser = totalUsers > 0 ? totalActiveDays / totalUsers : 0;
+
         setRealtimeMetrics({
           pageViews,
           uniqueVisitors,
           telegramClicks,
           avgSessionDuration,
           bounceRate,
+          avgSignupsPerUserPerWeek,
+          avgActiveDaysPerUser,
         });
 
         // Today's stats for the banner
@@ -440,6 +518,18 @@ export function AnalyticsDashboard() {
           icon={Search}
           description="Процент отказов — доля сессий, в которых было только одно событие. Формула: (сессии с 1 событием / все сессии) × 100%"
         />
+        <MetricCard
+          title="Ср. записей/пользователь/неделю"
+          value={realtimeMetrics.avgSignupsPerUserPerWeek.toFixed(1)}
+          icon={UserCheck}
+          description="Среднее количество переходов для записи на тренировки на одного пользователя в неделю. Рассчитывается как: (все переходы / пользователей / недель в периоде)"
+        />
+        <MetricCard
+          title="Ср. активных дней/пользователь"
+          value={realtimeMetrics.avgActiveDaysPerUser.toFixed(1)}
+          icon={CalendarDays}
+          description="Среднее количество дней, в которые пользователь заходил на сайт. Показывает, как часто пользователи возвращаются."
+        />
       </div>
 
       {/* Daily visitors and devices */}
@@ -463,9 +553,17 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Channel analytics */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
         <PopularChannelsChart data={channelData.popularChannels} />
         <ChannelTypesTable data={channelData.channelTypes} />
+      </div>
+
+      {/* User activity section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SignupDistributionChart data={signupDistribution} />
+        <div className="lg:col-span-1">
+          <UserActivityTable data={userActivity} />
+        </div>
       </div>
     </div>
   );
