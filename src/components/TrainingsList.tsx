@@ -4,13 +4,16 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useToast } from "@/hooks/use-toast";
 import { SearchBar } from "./SearchBar";
 import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
 import { DatePicker } from "./DatePicker";
 import { AdminFiltersBar } from "./AdminFiltersBar";
 import { AdminTrainingsTable } from "./AdminTrainingsTable";
-import { Calendar } from "lucide-react";
+import { ManualTrainingForm } from "./ManualTrainingForm";
+import { Button } from "./ui/button";
+import { Calendar, Plus } from "lucide-react";
 
 interface Training {
   id: string;
@@ -29,6 +32,7 @@ interface Training {
   description: string | null;
   raw_text: string;
   spots: number | null;
+  signup_url?: string | null;
   channels?: { 
     name: string; 
     default_coach: string | null; 
@@ -47,6 +51,7 @@ interface TrainingsListProps {
 export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsListProps) {
   const isMobile = useIsMobile();
   const { trackPageView, trackTelegramRedirect, trackSearch, trackDateChange } = useAnalytics();
+  const { toast } = useToast();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -62,6 +67,9 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   // Derived date filter string for API
   const dateFilter = format(selectedDate, "yyyy-MM-dd");
   
+  // Manual training form
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingTraining, setEditingTraining] = useState<any>(null);
   
   // Admin table sorting
   const [tableSortColumn, setTableSortColumn] = useState("time");
@@ -151,6 +159,53 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
       setTableSortColumn(column);
       setTableSortDirection("asc");
     }
+  };
+
+  const handleEdit = (training: Training) => {
+    setEditingTraining({
+      id: training.id,
+      channel_id: training.channel_id,
+      date: training.date || format(new Date(), "yyyy-MM-dd"),
+      time_start: training.time_start || "",
+      time_end: training.time_end || "",
+      title: training.title || "",
+      type: training.type || "",
+      level: training.level || "",
+      coach: training.coach || "",
+      location_id: training.location_id || "",
+      spots: training.spots,
+      price: training.price,
+      description: training.description || "",
+      signup_url: (training as any).signup_url || "",
+    });
+    setFormOpen(true);
+  };
+
+  const handleDelete = async (trainingId: string) => {
+    try {
+      const { error } = await supabase.from("trainings").delete().eq("id", trainingId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Тренировка удалена",
+        description: "Тренировка успешно удалена из расписания",
+      });
+
+      fetchTrainings();
+    } catch (error) {
+      console.error("Error deleting training:", error);
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : "Не удалось удалить тренировку",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFormSuccess = () => {
+    fetchTrainings();
+    setEditingTraining(null);
   };
 
   // Filter out past trainings (for today only) and by search/location query
@@ -248,6 +303,10 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   };
 
   const getTelegramUrl = (training: Training) => {
+    // Priority: signup_url (manual), then auto-parsed message URL
+    if (training.signup_url) {
+      return training.signup_url;
+    }
     if (training.channels?.username && training.message_id) {
       return `https://t.me/${training.channels.username}/${training.message_id}`;
     }
@@ -284,49 +343,72 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   // Admin view
   if (isAdmin) {
     return (
-      <div className="space-y-4">
-        {/* Admin Filters Bar */}
-        <AdminFiltersBar
-          date={selectedDate}
-          coach={coachFilter}
-          level={levelFilter}
-          type={typeFilter}
-          locationSearch={locationSearch}
-          channel={channelFilter}
-          onDateChange={setSelectedDate}
-          onCoachChange={setCoachFilter}
-          onLevelChange={setLevelFilter}
-          onTypeChange={setTypeFilter}
-          onLocationSearchChange={setLocationSearch}
-          onChannelChange={setChannelFilter}
-          onReset={resetFilters}
-          coaches={coaches}
-          levels={levels}
-          types={types}
-          channels={channels}
-        />
+      <>
+        <div className="space-y-4">
+          {/* Add Training Button */}
+          <div className="flex justify-end">
+            <Button onClick={() => {
+              setEditingTraining(null);
+              setFormOpen(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Добавить тренировку
+            </Button>
+          </div>
 
-        {/* Count */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            Найдено: {trainingsWithLocation.length} тренировок
-          </span>
+          {/* Admin Filters Bar */}
+          <AdminFiltersBar
+            date={selectedDate}
+            coach={coachFilter}
+            level={levelFilter}
+            type={typeFilter}
+            locationSearch={locationSearch}
+            channel={channelFilter}
+            onDateChange={setSelectedDate}
+            onCoachChange={setCoachFilter}
+            onLevelChange={setLevelFilter}
+            onTypeChange={setTypeFilter}
+            onLocationSearchChange={setLocationSearch}
+            onChannelChange={setChannelFilter}
+            onReset={resetFilters}
+            coaches={coaches}
+            levels={levels}
+            types={types}
+            channels={channels}
+          />
+
+          {/* Count */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Найдено: {trainingsWithLocation.length} тренировок
+            </span>
+          </div>
+
+          {/* Admin Table */}
+          {loading ? (
+            <div className="flex h-32 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <AdminTrainingsTable
+              trainings={trainingsWithLocation}
+              sortColumn={tableSortColumn}
+              sortDirection={tableSortDirection}
+              onSort={handleTableSort}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          )}
         </div>
 
-        {/* Admin Table */}
-        {loading ? (
-          <div className="flex h-32 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        ) : (
-          <AdminTrainingsTable
-            trainings={trainingsWithLocation}
-            sortColumn={tableSortColumn}
-            sortDirection={tableSortDirection}
-            onSort={handleTableSort}
-          />
-        )}
-      </div>
+        {/* Manual Training Form */}
+        <ManualTrainingForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          onSuccess={handleFormSuccess}
+          editingTraining={editingTraining}
+        />
+      </>
     );
   }
 
