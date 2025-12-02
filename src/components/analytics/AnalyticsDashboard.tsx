@@ -10,6 +10,8 @@ import { PopularTypesChart } from "./PopularTypesChart";
 import { PopularChannelsChart } from "./PopularChannelsChart";
 import { ChannelTypesTable } from "./ChannelTypesTable";
 import { TopSearchesTable } from "./TopSearchesTable";
+import { DailyVisitorsChart } from "./DailyVisitorsChart";
+import { RetentionTable } from "./RetentionTable";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -19,12 +21,17 @@ interface DailyStats {
   date: string;
   page_views: number;
   unique_visitors: number;
+  new_visitors: number;
+  returning_visitors: number;
   telegram_clicks: number;
   avg_session_duration: number;
   bounce_rate: number;
   device_breakdown: { mobile?: number; desktop?: number; tablet?: number };
   popular_types: Record<string, number>;
   search_queries: Record<string, number>;
+  retention_d1: number | null;
+  retention_d7: number | null;
+  retention_d30: number | null;
 }
 
 export function AnalyticsDashboard() {
@@ -40,6 +47,19 @@ export function AnalyticsDashboard() {
     popularChannels: Record<string, number>;
     channelTypes: Array<{ channel: string; types: Record<string, number>; total: number }>;
   }>({ popularChannels: {}, channelTypes: [] });
+  const [dailyVisitorsData, setDailyVisitorsData] = useState<Array<{
+    date: string;
+    total: number;
+    new: number;
+    returning: number;
+  }>>([]);
+  const [retentionData, setRetentionData] = useState<Array<{
+    date: string;
+    newVisitors: number;
+    retentionD1: number | null;
+    retentionD7: number | null;
+    retentionD30: number | null;
+  }>>([]);
 
   const getDaysCount = (range: DateRange) => {
     switch (range) {
@@ -64,6 +84,21 @@ export function AnalyticsDashboard() {
 
       if (!error && data) {
         setStats(data as DailyStats[]);
+        
+        // Prepare retention data
+        const retentionTableData = data
+          .filter(d => d.new_visitors > 0)
+          .map(d => ({
+            date: d.date,
+            newVisitors: d.new_visitors,
+            retentionD1: d.retention_d1,
+            retentionD7: d.retention_d7,
+            retentionD30: d.retention_d30,
+          }))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 10);
+        
+        setRetentionData(retentionTableData);
       }
       setLoading(false);
     }
@@ -130,6 +165,34 @@ export function AnalyticsDashboard() {
           popularChannels: channelClicksMap,
           channelTypes: channelTypesArray,
         });
+
+        // Calculate daily visitors breakdown
+        const dailyVisitorsMap = new Map<string, { total: Set<string>; new: Set<string> }>();
+        
+        events.forEach(event => {
+          const eventDate = format(new Date(event.created_at), "yyyy-MM-dd");
+          if (!dailyVisitorsMap.has(eventDate)) {
+            dailyVisitorsMap.set(eventDate, { total: new Set(), new: new Set() });
+          }
+          const dayData = dailyVisitorsMap.get(eventDate)!;
+          dayData.total.add(event.visitor_id);
+          
+          // Check if this is a session_start event (new visitor for that day)
+          if (event.event_type === "session_start") {
+            dayData.new.add(event.visitor_id);
+          }
+        });
+
+        const dailyVisitors = Array.from(dailyVisitorsMap.entries())
+          .map(([date, data]) => ({
+            date,
+            total: data.total.size,
+            new: data.new.size,
+            returning: data.total.size - data.new.size,
+          }))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        setDailyVisitorsData(dailyVisitors);
       }
     }
 
@@ -274,10 +337,18 @@ export function AnalyticsDashboard() {
         />
       </div>
 
-      {/* Charts row */}
+      {/* Daily visitors and devices */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <DailyVisitorsChart data={dailyVisitorsData} />
+        <DevicesPieChart data={deviceBreakdown} />
+      </div>
+
+      {/* Retention table */}
+      <RetentionTable data={retentionData} />
+
+      {/* Original visitors chart */}
       <div className="grid md:grid-cols-2 gap-4">
         <VisitorsChart data={chartData} />
-        <DevicesPieChart data={deviceBreakdown} />
       </div>
 
       {/* Popular types and searches */}
