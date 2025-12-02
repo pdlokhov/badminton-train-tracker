@@ -33,6 +33,10 @@ interface Training {
   raw_text: string;
   spots: number | null;
   signup_url?: string | null;
+  is_recurring?: boolean;
+  recurrence_day_of_week?: number | null;
+  recurring_until?: string | null;
+  recurring_template_id?: string | null;
   channels?: { 
     name: string; 
     default_coach: string | null; 
@@ -176,21 +180,59 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
       spots: training.spots,
       price: training.price,
       description: training.description || "",
-      signup_url: (training as any).signup_url || "",
+      signup_url: training.signup_url || "",
+      is_recurring: training.is_recurring || false,
+      recurring_until: training.recurring_until || null,
     });
     setFormOpen(true);
   };
 
   const handleDelete = async (trainingId: string) => {
     try {
-      const { error } = await supabase.from("trainings").delete().eq("id", trainingId);
+      // Check if training is part of recurring series
+      const training = trainings.find(t => t.id === trainingId);
+      
+      if (training?.recurring_template_id) {
+        // Ask user if they want to delete the whole series
+        const deleteAll = window.confirm(
+          "Эта тренировка является частью регулярного расписания. Удалить все тренировки из этой серии?"
+        );
+        
+        if (deleteAll) {
+          const { error } = await supabase
+            .from("trainings")
+            .delete()
+            .eq("recurring_template_id", training.recurring_template_id);
 
-      if (error) throw error;
+          if (error) throw error;
 
-      toast({
-        title: "Тренировка удалена",
-        description: "Тренировка успешно удалена из расписания",
-      });
+          toast({
+            title: "Серия тренировок удалена",
+            description: "Все повторяющиеся тренировки успешно удалены",
+          });
+        } else {
+          const { error } = await supabase
+            .from("trainings")
+            .delete()
+            .eq("id", trainingId);
+
+          if (error) throw error;
+
+          toast({
+            title: "Тренировка удалена",
+            description: "Только эта тренировка была удалена",
+          });
+        }
+      } else {
+        const { error } = await supabase.from("trainings").delete().eq("id", trainingId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Тренировка удалена",
+          description: "Тренировка успешно удалена из расписания",
+        });
+      }
 
       fetchTrainings();
     } catch (error) {

@@ -5,6 +5,7 @@ import { trainingSchema, type TrainingFormData } from "@/lib/validations";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +37,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, addWeeks, getDay } from "date-fns";
 import { ru } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -59,6 +61,8 @@ interface ManualTrainingFormProps {
     price: number | null;
     description: string | null;
     signup_url: string | null;
+    is_recurring?: boolean;
+    recurring_until?: string | null;
   } | null;
 }
 
@@ -89,6 +93,8 @@ export function ManualTrainingForm({
       price: "" as any,
       description: "",
       signup_url: "",
+      is_recurring: false,
+      recurring_until: undefined,
     },
   });
 
@@ -124,6 +130,8 @@ export function ManualTrainingForm({
         price: (editingTraining.price ?? "") as any,
         description: editingTraining.description || "",
         signup_url: editingTraining.signup_url || "",
+        is_recurring: false,
+        recurring_until: undefined,
       });
     } else if (!editingTraining && open) {
       form.reset({
@@ -140,6 +148,8 @@ export function ManualTrainingForm({
         price: "" as any,
         description: "",
         signup_url: "",
+        is_recurring: false,
+        recurring_until: undefined,
       });
     }
   }, [editingTraining, open, form]);
@@ -147,9 +157,8 @@ export function ManualTrainingForm({
   const onSubmit = async (data: TrainingFormData) => {
     setIsSubmitting(true);
     try {
-      const trainingData = {
+      const baseTrainingData = {
         channel_id: data.channel_id,
-        date: format(data.date, "yyyy-MM-dd"),
         time_start: data.time_start,
         time_end: data.time_end || null,
         title: data.title || null,
@@ -161,11 +170,19 @@ export function ManualTrainingForm({
         price: data.price ? Number(data.price) : null,
         description: data.description || null,
         signup_url: data.signup_url || null,
-        message_id: editingTraining?.id ? editingTraining.id.split("_")[0] : `manual_${Date.now()}`,
         raw_text: "Создано вручную",
+        is_recurring: data.is_recurring,
+        recurrence_day_of_week: data.is_recurring ? getDay(data.date) : null,
+        recurring_until: data.is_recurring && data.recurring_until ? format(data.recurring_until, "yyyy-MM-dd") : null,
       };
 
       if (editingTraining) {
+        const trainingData = {
+          ...baseTrainingData,
+          date: format(data.date, "yyyy-MM-dd"),
+          message_id: editingTraining.id.split("_")[0],
+        };
+
         const { error } = await supabase
           .from("trainings")
           .update(trainingData)
@@ -178,13 +195,44 @@ export function ManualTrainingForm({
           description: "Изменения успешно сохранены",
         });
       } else {
-        const { error } = await supabase.from("trainings").insert(trainingData);
+        // Generate trainings based on recurring settings
+        const trainingsToInsert = [];
+        
+        if (data.is_recurring && data.recurring_until) {
+          // Generate recurring trainings
+          const templateId = crypto.randomUUID();
+          let currentDate = new Date(data.date);
+          const endDate = new Date(data.recurring_until);
+          
+          while (currentDate <= endDate) {
+            trainingsToInsert.push({
+              ...baseTrainingData,
+              date: format(currentDate, "yyyy-MM-dd"),
+              message_id: `recurring_${templateId}_${format(currentDate, "yyyy-MM-dd")}`,
+              recurring_template_id: templateId,
+            });
+            
+            // Move to next week
+            currentDate = addWeeks(currentDate, 1);
+          }
+        } else {
+          // Single training
+          trainingsToInsert.push({
+            ...baseTrainingData,
+            date: format(data.date, "yyyy-MM-dd"),
+            message_id: `manual_${Date.now()}`,
+          });
+        }
+
+        const { error } = await supabase.from("trainings").insert(trainingsToInsert);
 
         if (error) throw error;
 
         toast({
-          title: "Тренировка создана",
-          description: "Тренировка успешно добавлена в расписание",
+          title: data.is_recurring ? "Регулярные тренировки созданы" : "Тренировка создана",
+          description: data.is_recurring 
+            ? `Создано ${trainingsToInsert.length} тренировок` 
+            : "Тренировка успешно добавлена в расписание",
         });
       }
 
@@ -443,6 +491,80 @@ export function ManualTrainingForm({
                 </FormItem>
               )}
             />
+
+            {!editingTraining && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="is_recurring"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Регулярная тренировка</FormLabel>
+                        <FormDescription>
+                          Тренировка будет повторяться каждую неделю в выбранный день
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("is_recurring") && (
+                  <FormField
+                    control={form.control}
+                    name="recurring_until"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Повторять до</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "d MMMM yyyy", { locale: ru })
+                                ) : (
+                                  <span>Выберите дату окончания</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => {
+                                const startDate = form.watch("date");
+                                return !startDate || date < startDate;
+                              }}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormDescription>
+                          Тренировки будут созданы до этой даты включительно
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </>
+            )}
 
             <FormField
               control={form.control}

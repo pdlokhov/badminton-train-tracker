@@ -38,6 +38,8 @@ interface Training {
   location: string | null;
   spots: number | null;
   signup_url?: string | null;
+  is_recurring?: boolean;
+  recurring_template_id?: string | null;
   channels?: {
     name: string;
     default_coach: string | null;
@@ -156,6 +158,11 @@ export function AdminTrainingsTable({
                     {training.type && (
                       <Badge variant="secondary" className="w-fit">
                         {training.type}
+                      </Badge>
+                    )}
+                    {training.is_recurring && (
+                      <Badge variant="outline" className="w-fit border-blue-500/30 text-blue-600 dark:text-blue-400">
+                        Регулярная
                       </Badge>
                     )}
                     {training.spots !== null && (
