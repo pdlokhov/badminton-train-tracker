@@ -1,5 +1,11 @@
 import { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MetricCardProps {
   title: string;
@@ -7,10 +13,11 @@ interface MetricCardProps {
   icon: LucideIcon;
   change?: number;
   changeLabel?: string;
+  description?: string;
 }
 
-export function MetricCard({ title, value, icon: Icon, change, changeLabel }: MetricCardProps) {
-  return (
+export function MetricCard({ title, value, icon: Icon, change, changeLabel, description }: MetricCardProps) {
+  const content = (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
@@ -29,5 +36,22 @@ export function MetricCard({ title, value, icon: Icon, change, changeLabel }: Me
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!description) {
+    return content;
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {content}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p className="text-sm">{description}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
