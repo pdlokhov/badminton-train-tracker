@@ -260,12 +260,16 @@ export type Database = {
           date: string | null
           description: string | null
           id: string
+          is_recurring: boolean | null
           level: string | null
           location: string | null
           location_id: string | null
           message_id: string
           price: number | null
           raw_text: string
+          recurrence_day_of_week: number | null
+          recurring_template_id: string | null
+          recurring_until: string | null
           signup_url: string | null
           spots: number | null
           time_end: string | null
@@ -281,12 +285,16 @@ export type Database = {
           date?: string | null
           description?: string | null
           id?: string
+          is_recurring?: boolean | null
           level?: string | null
           location?: string | null
           location_id?: string | null
           message_id: string
           price?: number | null
           raw_text: string
+          recurrence_day_of_week?: number | null
+          recurring_template_id?: string | null
+          recurring_until?: string | null
           signup_url?: string | null
           spots?: number | null
           time_end?: string | null
@@ -302,12 +310,16 @@ export type Database = {
           date?: string | null
           description?: string | null
           id?: string
+          is_recurring?: boolean | null
           level?: string | null
           location?: string | null
           location_id?: string | null
           message_id?: string
           price?: number | null
           raw_text?: string
+          recurrence_day_of_week?: number | null
+          recurring_template_id?: string | null
+          recurring_until?: string | null
           signup_url?: string | null
           spots?: number | null
           time_end?: string | null

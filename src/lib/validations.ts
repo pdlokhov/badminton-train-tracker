@@ -100,7 +100,21 @@ export const trainingSchema = z.object({
     .max(500, "URL не должен превышать 500 символов")
     .optional()
     .or(z.literal("")),
-});
+  is_recurring: z.boolean().default(false),
+  recurring_until: z.date().optional(),
+}).refine(
+  (data) => {
+    // If is_recurring is true, recurring_until must be set
+    if (data.is_recurring && !data.recurring_until) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Выберите дату окончания для регулярных тренировок",
+    path: ["recurring_until"],
+  }
+);
 
 export type ChannelFormData = z.infer<typeof channelSchema>;
 export type LocationFormData = z.infer<typeof locationSchema>;
