@@ -37,5 +37,71 @@ export const locationSchema = z.object({
     .optional(),
 });
 
+export const trainingSchema = z.object({
+  channel_id: z.string().uuid("Выберите клуб"),
+  date: z.date({ required_error: "Выберите дату" }),
+  time_start: z
+    .string()
+    .trim()
+    .regex(/^\d{2}:\d{2}$/, "Формат времени: ЧЧ:ММ")
+    .min(1, "Введите время начала"),
+  time_end: z
+    .string()
+    .trim()
+    .regex(/^\d{2}:\d{2}$/, "Формат времени: ЧЧ:ММ")
+    .optional()
+    .or(z.literal("")),
+  title: z
+    .string()
+    .trim()
+    .max(200, "Название не должно превышать 200 символов")
+    .optional()
+    .or(z.literal("")),
+  type: z
+    .string()
+    .trim()
+    .max(100, "Тип не должен превышать 100 символов")
+    .optional()
+    .or(z.literal("")),
+  level: z
+    .string()
+    .trim()
+    .max(50, "Уровень не должен превышать 50 символов")
+    .optional()
+    .or(z.literal("")),
+  coach: z
+    .string()
+    .trim()
+    .max(100, "Имя тренера не должно превышать 100 символов")
+    .optional()
+    .or(z.literal("")),
+  location_id: z.string().uuid().optional().or(z.literal("")),
+  spots: z.coerce
+    .number()
+    .int("Количество мест должно быть целым числом")
+    .min(0, "Количество мест не может быть отрицательным")
+    .optional()
+    .or(z.literal("")),
+  price: z.coerce
+    .number()
+    .min(0, "Цена не может быть отрицательной")
+    .optional()
+    .or(z.literal("")),
+  description: z
+    .string()
+    .trim()
+    .max(1000, "Описание не должно превышать 1000 символов")
+    .optional()
+    .or(z.literal("")),
+  signup_url: z
+    .string()
+    .trim()
+    .url("Введите корректный URL")
+    .max(500, "URL не должен превышать 500 символов")
+    .optional()
+    .or(z.literal("")),
+});
+
 export type ChannelFormData = z.infer<typeof channelSchema>;
 export type LocationFormData = z.infer<typeof locationSchema>;
+export type TrainingFormData = z.infer<typeof trainingSchema>;

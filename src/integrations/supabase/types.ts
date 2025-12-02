@@ -266,6 +266,7 @@ export type Database = {
           message_id: string
           price: number | null
           raw_text: string
+          signup_url: string | null
           spots: number | null
           time_end: string | null
           time_start: string | null
@@ -286,6 +287,7 @@ export type Database = {
           message_id: string
           price?: number | null
           raw_text: string
+          signup_url?: string | null
           spots?: number | null
           time_end?: string | null
           time_start?: string | null
@@ -306,6 +308,7 @@ export type Database = {
           message_id?: string
           price?: number | null
           raw_text?: string
+          signup_url?: string | null
           spots?: number | null
           time_end?: string | null
           time_start?: string | null

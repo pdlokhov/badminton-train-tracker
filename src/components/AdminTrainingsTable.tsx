@@ -8,9 +8,20 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpDown, ExternalLink } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Training {
   id: string;
@@ -26,6 +37,7 @@ interface Training {
   price: number | null;
   location: string | null;
   spots: number | null;
+  signup_url?: string | null;
   channels?: {
     name: string;
     default_coach: string | null;
@@ -39,6 +51,8 @@ interface AdminTrainingsTableProps {
   sortColumn: string;
   sortDirection: "asc" | "desc";
   onSort: (column: string) => void;
+  onEdit: (training: Training) => void;
+  onDelete: (trainingId: string) => void;
 }
 
 const getLevelBadgeClass = (level: string | null) => {
@@ -58,7 +72,10 @@ export function AdminTrainingsTable({
   sortColumn,
   sortDirection,
   onSort,
+  onEdit,
+  onDelete,
 }: AdminTrainingsTableProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
     const s = start.substring(0, 5);
@@ -76,6 +93,10 @@ export function AdminTrainingsTable({
   };
 
   const getTelegramUrl = (training: Training) => {
+    // Priority: signup_url (manual), then auto-parsed message URL
+    if (training.signup_url) {
+      return training.signup_url;
+    }
     if (training.channels?.username && training.message_id) {
       return `https://t.me/${training.channels.username}/${training.message_id}`;
     }
@@ -111,7 +132,7 @@ export function AdminTrainingsTable({
             <SortableHeader column="price">Цена</SortableHeader>
             <TableHead>Место</TableHead>
             <SortableHeader column="club">Клуб</SortableHeader>
-            <TableHead className="text-right">Действие</TableHead>
+            <TableHead className="text-right">Действия</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -166,31 +187,71 @@ export function AdminTrainingsTable({
                 </TableCell>
                 <TableCell>{training.channels?.name || "—"}</TableCell>
                 <TableCell className="text-right">
-                  {getTelegramUrl(training) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="gap-1.5"
-                    >
-                      <a
-                        href={getTelegramUrl(training)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                  <div className="flex items-center justify-end gap-2">
+                    {getTelegramUrl(training) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="gap-1.5 h-8 px-2"
                       >
-                        Записаться
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                        <a
+                          href={getTelegramUrl(training)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(training)}
+                      className="h-8 px-2"
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">—</span>
-                  )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeletingId(training.id)}
+                      className="h-8 px-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      <AlertDialog open={!!deletingId} onOpenChange={() => setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить тренировку?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Тренировка будет удалена из расписания.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingId) {
+                  onDelete(deletingId);
+                  setDeletingId(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
