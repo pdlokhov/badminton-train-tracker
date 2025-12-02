@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Eye, Users, Send, Clock, TrendingDown, Search } from "lucide-react";
+import { Eye, Users, Send, Clock, TrendingDown, Search, RefreshCw } from "lucide-react";
 import { MetricCard } from "./MetricCard";
 import { VisitorsChart } from "./VisitorsChart";
 import { DevicesPieChart } from "./DevicesPieChart";
@@ -14,6 +14,7 @@ import { DailyVisitorsChart } from "./DailyVisitorsChart";
 import { RetentionTable } from "./RetentionTable";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 type DateRange = "7d" | "30d" | "90d";
 
@@ -37,7 +38,15 @@ interface DailyStats {
 export function AnalyticsDashboard() {
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [loading, setLoading] = useState(true);
+  const [aggregating, setAggregating] = useState(false);
   const [stats, setStats] = useState<DailyStats[]>([]);
+  const [realtimeMetrics, setRealtimeMetrics] = useState({
+    pageViews: 0,
+    uniqueVisitors: 0,
+    telegramClicks: 0,
+    avgSessionDuration: 0,
+    bounceRate: 0,
+  });
   const [realtimeStats, setRealtimeStats] = useState({
     todayViews: 0,
     todayVisitors: 0,
@@ -60,6 +69,7 @@ export function AnalyticsDashboard() {
     retentionD7: number | null;
     retentionD30: number | null;
   }>>([]);
+  const { toast } = useToast();
 
   const getDaysCount = (range: DateRange) => {
     switch (range) {
@@ -106,7 +116,7 @@ export function AnalyticsDashboard() {
     fetchStats();
   }, [dateRange]);
 
-  // Fetch today's realtime stats and channel data from events
+  // Fetch realtime stats and channel data from events
   useEffect(() => {
     async function fetchRealtimeStats() {
       const days = getDaysCount(dateRange);
@@ -116,24 +126,64 @@ export function AnalyticsDashboard() {
 
       const { data: events } = await supabase
         .from("analytics_events")
-        .select("event_type, visitor_id, event_data, created_at")
+        .select("event_type, visitor_id, event_data, created_at, session_id")
         .gte("created_at", startOfRange)
         .lte("created_at", endOfRange);
 
       if (events) {
-        // Today's stats
+        // Calculate real-time metrics from all events in range
+        const pageViews = events.filter(e => e.event_type === "page_view").length;
+        const uniqueVisitors = new Set(events.map(e => e.visitor_id)).size;
+        const telegramClicks = events.filter(e => e.event_type === "telegram_redirect").length;
+
+        // Calculate session duration and bounce rate
+        const sessions = new Map<string, { start: Date; end: Date; events: number }>();
+        events.forEach(event => {
+          const sessionId = event.session_id;
+          const eventTime = new Date(event.created_at);
+          
+          if (!sessions.has(sessionId)) {
+            sessions.set(sessionId, { start: eventTime, end: eventTime, events: 1 });
+          } else {
+            const session = sessions.get(sessionId)!;
+            if (eventTime < session.start) session.start = eventTime;
+            if (eventTime > session.end) session.end = eventTime;
+            session.events++;
+          }
+        });
+
+        let totalDuration = 0;
+        let bounceSessions = 0;
+        sessions.forEach(session => {
+          const duration = (session.end.getTime() - session.start.getTime()) / 1000;
+          totalDuration += duration;
+          if (session.events === 1) bounceSessions++;
+        });
+        
+        const avgSessionDuration = sessions.size > 0 ? Math.round(totalDuration / sessions.size) : 0;
+        const bounceRate = sessions.size > 0 ? Math.round((bounceSessions / sessions.size) * 100) : 0;
+
+        setRealtimeMetrics({
+          pageViews,
+          uniqueVisitors,
+          telegramClicks,
+          avgSessionDuration,
+          bounceRate,
+        });
+
+        // Today's stats for the banner
         const today = new Date();
         const startOfToday = startOfDay(today).toISOString();
         const todayEvents = events.filter(e => e.created_at >= startOfToday);
         
-        const pageViews = todayEvents.filter(e => e.event_type === "page_view").length;
-        const uniqueVisitors = new Set(todayEvents.map(e => e.visitor_id)).size;
-        const telegramClicks = todayEvents.filter(e => e.event_type === "telegram_redirect").length;
+        const todayPageViews = todayEvents.filter(e => e.event_type === "page_view").length;
+        const todayUniqueVisitors = new Set(todayEvents.map(e => e.visitor_id)).size;
+        const todayTelegramClicks = todayEvents.filter(e => e.event_type === "telegram_redirect").length;
 
         setRealtimeStats({
-          todayViews: pageViews,
-          todayVisitors: uniqueVisitors,
-          todayTelegram: telegramClicks,
+          todayViews: todayPageViews,
+          todayVisitors: todayUniqueVisitors,
+          todayTelegram: todayTelegramClicks,
         });
 
         // Channel analytics
@@ -201,20 +251,59 @@ export function AnalyticsDashboard() {
     return () => clearInterval(interval);
   }, [dateRange]);
 
-  // Calculate totals from stats
-  const totals = stats.reduce(
-    (acc, day) => ({
-      pageViews: acc.pageViews + (day.page_views || 0),
-      uniqueVisitors: acc.uniqueVisitors + (day.unique_visitors || 0),
-      telegramClicks: acc.telegramClicks + (day.telegram_clicks || 0),
-      avgDuration: acc.avgDuration + (day.avg_session_duration || 0),
-      bounceRate: acc.bounceRate + (day.bounce_rate || 0),
-    }),
-    { pageViews: 0, uniqueVisitors: 0, telegramClicks: 0, avgDuration: 0, bounceRate: 0 }
-  );
+  // Handle manual aggregation
+  const handleAggregate = async () => {
+    setAggregating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("aggregate-analytics", {
+        body: {}
+      });
 
-  const avgBounceRate = stats.length > 0 ? Math.round(totals.bounceRate / stats.length) : 0;
-  const avgDuration = stats.length > 0 ? Math.round(totals.avgDuration / stats.length) : 0;
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Агрегация завершена",
+          description: `Статистика обновлена для ${data.date}`,
+        });
+        // Refresh daily stats
+        const days = getDaysCount(dateRange);
+        const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
+        const { data: statsData } = await supabase
+          .from("analytics_daily")
+          .select("*")
+          .gte("date", startDate)
+          .order("date", { ascending: true });
+        
+        if (statsData) {
+          setStats(statsData as DailyStats[]);
+          
+          const retentionTableData = statsData
+            .filter(d => d.new_visitors > 0)
+            .map(d => ({
+              date: d.date,
+              newVisitors: d.new_visitors,
+              retentionD1: d.retention_d1,
+              retentionD7: d.retention_d7,
+              retentionD30: d.retention_d30,
+            }))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 10);
+          
+          setRetentionData(retentionTableData);
+        }
+      }
+    } catch (error) {
+      console.error("Aggregation error:", error);
+      toast({
+        title: "Ошибка агрегации",
+        description: error instanceof Error ? error.message : "Не удалось обновить статистику",
+        variant: "destructive",
+      });
+    } finally {
+      setAggregating(false);
+    }
+  };
 
   // Aggregate device breakdown
   const deviceBreakdown = stats.reduce(
@@ -279,8 +368,8 @@ export function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Date range selector */}
-      <div className="flex gap-2">
+      {/* Date range selector and aggregation button */}
+      <div className="flex gap-2 flex-wrap items-center">
         {(["7d", "30d", "90d"] as DateRange[]).map((range) => (
           <Button
             key={range}
@@ -291,6 +380,16 @@ export function AnalyticsDashboard() {
             {range === "7d" ? "7 дней" : range === "30d" ? "30 дней" : "90 дней"}
           </Button>
         ))}
+        <div className="flex-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAggregate}
+          disabled={aggregating}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${aggregating ? "animate-spin" : ""}`} />
+          {aggregating ? "Агрегация..." : "Обновить статистику"}
+        </Button>
       </div>
 
       {/* Today's realtime stats */}
@@ -303,36 +402,36 @@ export function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Metric cards */}
+      {/* Metric cards - using real-time metrics from events */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <MetricCard
           title="Просмотры"
-          value={totals.pageViews}
+          value={realtimeMetrics.pageViews}
           icon={Eye}
         />
         <MetricCard
           title="Посетители"
-          value={totals.uniqueVisitors}
+          value={realtimeMetrics.uniqueVisitors}
           icon={Users}
         />
         <MetricCard
           title="Переходы в TG"
-          value={totals.telegramClicks}
+          value={realtimeMetrics.telegramClicks}
           icon={Send}
         />
         <MetricCard
           title="CTR в Telegram"
-          value={totals.pageViews > 0 ? `${Math.round((totals.telegramClicks / totals.pageViews) * 100)}%` : "0%"}
+          value={realtimeMetrics.pageViews > 0 ? `${Math.round((realtimeMetrics.telegramClicks / realtimeMetrics.pageViews) * 100)}%` : "0%"}
           icon={TrendingDown}
         />
         <MetricCard
           title="Ср. время"
-          value={formatDuration(avgDuration)}
+          value={formatDuration(realtimeMetrics.avgSessionDuration)}
           icon={Clock}
         />
         <MetricCard
           title="Bounce rate"
-          value={`${avgBounceRate}%`}
+          value={`${realtimeMetrics.bounceRate}%`}
           icon={Search}
         />
       </div>
