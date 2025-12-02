@@ -7,6 +7,8 @@ import { MetricCard } from "./MetricCard";
 import { VisitorsChart } from "./VisitorsChart";
 import { DevicesPieChart } from "./DevicesPieChart";
 import { PopularTypesChart } from "./PopularTypesChart";
+import { PopularChannelsChart } from "./PopularChannelsChart";
+import { ChannelTypesTable } from "./ChannelTypesTable";
 import { TopSearchesTable } from "./TopSearchesTable";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +36,10 @@ export function AnalyticsDashboard() {
     todayVisitors: 0,
     todayTelegram: 0,
   });
+  const [channelData, setChannelData] = useState<{
+    popularChannels: Record<string, number>;
+    channelTypes: Array<{ channel: string; types: Record<string, number>; total: number }>;
+  }>({ popularChannels: {}, channelTypes: [] });
 
   const getDaysCount = (range: DateRange) => {
     switch (range) {
@@ -65,28 +71,64 @@ export function AnalyticsDashboard() {
     fetchStats();
   }, [dateRange]);
 
-  // Fetch today's realtime stats from events
+  // Fetch today's realtime stats and channel data from events
   useEffect(() => {
     async function fetchRealtimeStats() {
-      const today = new Date();
-      const startOfToday = startOfDay(today).toISOString();
-      const endOfToday = endOfDay(today).toISOString();
+      const days = getDaysCount(dateRange);
+      const startDate = subDays(new Date(), days);
+      const startOfRange = startOfDay(startDate).toISOString();
+      const endOfRange = endOfDay(new Date()).toISOString();
 
       const { data: events } = await supabase
         .from("analytics_events")
-        .select("event_type, visitor_id")
-        .gte("created_at", startOfToday)
-        .lte("created_at", endOfToday);
+        .select("event_type, visitor_id, event_data, created_at")
+        .gte("created_at", startOfRange)
+        .lte("created_at", endOfRange);
 
       if (events) {
-        const pageViews = events.filter(e => e.event_type === "page_view").length;
-        const uniqueVisitors = new Set(events.map(e => e.visitor_id)).size;
-        const telegramClicks = events.filter(e => e.event_type === "telegram_redirect").length;
+        // Today's stats
+        const today = new Date();
+        const startOfToday = startOfDay(today).toISOString();
+        const todayEvents = events.filter(e => e.created_at >= startOfToday);
+        
+        const pageViews = todayEvents.filter(e => e.event_type === "page_view").length;
+        const uniqueVisitors = new Set(todayEvents.map(e => e.visitor_id)).size;
+        const telegramClicks = todayEvents.filter(e => e.event_type === "telegram_redirect").length;
 
         setRealtimeStats({
           todayViews: pageViews,
           todayVisitors: uniqueVisitors,
           todayTelegram: telegramClicks,
+        });
+
+        // Channel analytics
+        const telegramEvents = events.filter(e => e.event_type === "telegram_redirect");
+        
+        const channelClicksMap: Record<string, number> = {};
+        const channelTypesMap: Record<string, Record<string, number>> = {};
+
+        telegramEvents.forEach(event => {
+          const eventData = event.event_data as Record<string, unknown>;
+          const channel = (eventData?.channel_name as string) || "Неизвестно";
+          const type = (eventData?.training_type as string) || "Не указано";
+
+          channelClicksMap[channel] = (channelClicksMap[channel] || 0) + 1;
+
+          if (!channelTypesMap[channel]) {
+            channelTypesMap[channel] = {};
+          }
+          channelTypesMap[channel][type] = (channelTypesMap[channel][type] || 0) + 1;
+        });
+
+        const channelTypesArray = Object.entries(channelTypesMap).map(([channel, types]) => ({
+          channel,
+          types,
+          total: Object.values(types).reduce((sum, count) => sum + count, 0),
+        }));
+
+        setChannelData({
+          popularChannels: channelClicksMap,
+          channelTypes: channelTypesArray,
         });
       }
     }
@@ -94,7 +136,7 @@ export function AnalyticsDashboard() {
     fetchRealtimeStats();
     const interval = setInterval(fetchRealtimeStats, 60000); // Update every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [dateRange]);
 
   // Calculate totals from stats
   const totals = stats.reduce(
@@ -242,6 +284,12 @@ export function AnalyticsDashboard() {
       <div className="grid md:grid-cols-2 gap-4">
         <PopularTypesChart data={popularTypes} title="Популярные типы тренировок" />
         <TopSearchesTable data={searchQueries} />
+      </div>
+
+      {/* Channel analytics */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <PopularChannelsChart data={channelData.popularChannels} />
+        <ChannelTypesTable data={channelData.channelTypes} />
       </div>
     </div>
   );
