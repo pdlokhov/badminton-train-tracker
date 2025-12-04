@@ -12,7 +12,15 @@ interface ChannelFormProps {
   onChannelAdded: () => void;
 }
 
-const extractUsername = (url: string): string | null => {
+const extractUsernameAndTopic = (url: string): { username: string | null; topicId: number | null } => {
+  // Формат с топиком: https://t.me/vball_spb_chat/3940
+  const topicPattern = /^https?:\/\/t\.me\/([a-zA-Z0-9_]+)\/(\d+)\/?$/;
+  const topicMatch = url.trim().match(topicPattern);
+  if (topicMatch) {
+    return { username: topicMatch[1], topicId: parseInt(topicMatch[2]) };
+  }
+
+  // Обычные форматы без топика
   const patterns = [
     /^https?:\/\/t\.me\/([a-zA-Z0-9_]+)\/?$/,
     /^t\.me\/([a-zA-Z0-9_]+)\/?$/,
@@ -22,14 +30,14 @@ const extractUsername = (url: string): string | null => {
   for (const pattern of patterns) {
     const match = url.trim().match(pattern);
     if (match) {
-      return match[1];
+      return { username: match[1], topicId: null };
     }
   }
-  return null;
+  return { username: null, topicId: null };
 };
 
-const normalizeUrl = (username: string): string => {
-  return `https://t.me/${username}`;
+const normalizeUrl = (username: string, topicId: number | null): string => {
+  return topicId ? `https://t.me/${username}/${topicId}` : `https://t.me/${username}`;
 };
 
 export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
@@ -37,8 +45,18 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const [name, setName] = useState("");
   const [defaultCoach, setDefaultCoach] = useState("");
   const [parseImages, setParseImages] = useState(false);
+  const [topicId, setTopicId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Автоматически извлекаем topic_id из URL
+  const handleUrlChange = (newUrl: string) => {
+    setUrl(newUrl);
+    const { topicId: extractedTopicId } = extractUsernameAndTopic(newUrl);
+    if (extractedTopicId) {
+      setTopicId(extractedTopicId.toString());
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +67,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       url,
       defaultCoach,
       parseImages,
+      topicId: topicId || undefined,
     });
 
     if (!validation.success) {
@@ -61,7 +80,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       return;
     }
 
-    const username = extractUsername(url);
+    const { username, topicId: urlTopicId } = extractUsernameAndTopic(url);
     if (!username) {
       toast({
         title: "Ошибка",
@@ -71,10 +90,13 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       return;
     }
 
+    // Используем topic_id из поля или извлечённый из URL
+    const finalTopicId = topicId ? parseInt(topicId) : urlTopicId;
+
     setIsLoading(true);
 
     try {
-      const normalizedUrl = normalizeUrl(username);
+      const normalizedUrl = normalizeUrl(username, finalTopicId);
       
       const { error } = await supabase.from("channels").insert({
         name: name.trim(),
@@ -82,6 +104,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         username: username,
         parse_images: parseImages,
         default_coach: defaultCoach.trim() || null,
+        topic_id: finalTopicId || null,
       });
 
       if (error) {
@@ -112,6 +135,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       setName("");
       setDefaultCoach("");
       setParseImages(false);
+      setTopicId("");
       onChannelAdded();
     } catch (error) {
       console.error("Error adding channel:", error);
@@ -127,7 +151,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Название клуба</Label>
           <Input
@@ -139,14 +163,27 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="url">Ссылка на клуб</Label>
+          <Label htmlFor="url">Ссылка на канал</Label>
           <Input
             id="url"
             placeholder="https://t.me/lb_club_badminton"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => handleUrlChange(e.target.value)}
             maxLength={255}
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="topicId">ID топика (опционально)</Label>
+          <Input
+            id="topicId"
+            placeholder="3940"
+            value={topicId}
+            onChange={(e) => setTopicId(e.target.value)}
+            type="number"
+          />
+          <p className="text-xs text-muted-foreground">
+            Для супергрупп с разделами
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="defaultCoach">Тренер по умолчанию</Label>
