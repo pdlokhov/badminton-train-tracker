@@ -1165,7 +1165,7 @@ Deno.serve(async (req) => {
             const { data: upserted, error: upsertError } = await supabase
               .from('trainings')
               .upsert(trainingsToUpsert, { 
-                onConflict: 'channel_id,date,time_start,time_end,location',
+                onConflict: 'channel_id,date,time_start,message_id',
                 ignoreDuplicates: false
               })
               .select('id')
@@ -1240,7 +1240,7 @@ Deno.serve(async (req) => {
           const { data: upserted, error: upsertError } = await supabase
             .from('trainings')
             .upsert(trainingsToUpsert, { 
-              onConflict: 'channel_id,date,time_start,time_end,location',
+              onConflict: 'channel_id,date,time_start,message_id',
               ignoreDuplicates: false
             })
             .select('id')

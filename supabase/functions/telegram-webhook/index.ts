@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from('trainings')
       .upsert(trainingRecord, {
-        onConflict: 'channel_id,date,time_start,time_end,location',
+        onConflict: 'channel_id,date,time_start,message_id',
         ignoreDuplicates: false,
       })
       .select();
