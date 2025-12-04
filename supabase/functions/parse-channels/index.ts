@@ -565,13 +565,22 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     spots = Math.max(...chelNumbers)
     console.log(`Message ${messageId}: found ${chelNumbers.length} "чел." values: ${chelNumbers.join(', ')}, taking max = ${spots}`)
   } else {
-    // Шаг 2: Если "чел." не нашли, ищем все "X мест" (приоритет 2)
+    // Шаг 2: Если "чел." не нашли, ищем все "X мест" (число ПЕРЕД словом)
     const mestMatches = text.matchAll(/(\d+)\s*мест/gi)
     const mestNumbers = Array.from(mestMatches, m => parseInt(m[1]))
     
     if (mestNumbers.length > 0) {
       spots = Math.max(...mestNumbers)
       console.log(`Message ${messageId}: found ${mestNumbers.length} "мест" values: ${mestNumbers.join(', ')}, taking max = ${spots}`)
+    } else {
+      // Шаг 3: Ищем "Количество мест: X" и "Мест: X" (число ПОСЛЕ слова)
+      const mestColonMatches = text.matchAll(/(?:количество\s+)?мест[а]?[:\s]+(\d+)/gi)
+      const mestColonNumbers = Array.from(mestColonMatches, m => parseInt(m[1]))
+      
+      if (mestColonNumbers.length > 0) {
+        spots = Math.max(...mestColonNumbers)
+        console.log(`Message ${messageId}: found ${mestColonNumbers.length} "мест:" values: ${mestColonNumbers.join(', ')}, taking max = ${spots}`)
+      }
     }
   }
   
