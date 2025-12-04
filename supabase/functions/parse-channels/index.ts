@@ -493,6 +493,15 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     console.log(`Message ${messageId}: found "все уровни"`)
   }
   
+  // 4.5. Ищем "уровень: Любой", "level: Any"
+  if (!level) {
+    const anyLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*:?\s*(любой|любые|любая|all|any)/i)
+    if (anyLevelMatch) {
+      level = 'Любой'
+      console.log(`Message ${messageId}: found level "Любой"`)
+    }
+  }
+  
   // 5. Ищем уровень в контексте "НОВИЧКИ E-F"
   if (!level) {
     const noviceMatch = text.match(/(?:новичк[иа]?|начинающ[ие]+)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
