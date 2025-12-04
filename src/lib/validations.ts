@@ -17,6 +17,12 @@ export const channelSchema = z.object({
     .max(100, "Имя тренера не должно превышать 100 символов")
     .optional(),
   parseImages: z.boolean().default(false),
+  topicId: z.coerce
+    .number()
+    .int("ID топика должен быть целым числом")
+    .positive("ID топика должен быть положительным")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const locationSchema = z.object({

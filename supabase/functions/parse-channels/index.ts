@@ -11,6 +11,7 @@ interface Channel {
   name: string
   is_active: boolean
   parse_images: boolean
+  topic_id: number | null
 }
 
 interface Location {
@@ -600,9 +601,9 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   return result
 }
 
-async function fetchTelegramChannel(username: string): Promise<{ text: string, messageId: string }[]> {
+async function fetchTelegramChannel(username: string, topicId?: number | null): Promise<{ text: string, messageId: string }[]> {
   const url = `https://t.me/s/${username}`
-  console.log(`Fetching channel: ${url}`)
+  console.log(`Fetching channel: ${url}${topicId ? ` (topic: ${topicId})` : ''}`)
   
   const response = await fetch(url, {
     headers: {
@@ -619,7 +620,11 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
   const messages: { text: string, messageId: string }[] = []
   
   // Parse messages from HTML
-  const messageRegex = /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
+  // Формат data-post для супергрупп с топиками: "username/topicId/messageId"
+  // Формат для обычных каналов: "username/messageId"
+  const messageRegex = topicId 
+    ? new RegExp(`data-post="${username}/${topicId}/(\\d+)"[^>]*>[\\s\\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'g')
+    : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
   let match
   
   while ((match = messageRegex.exec(html)) !== null) {
@@ -637,11 +642,11 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
     text = text.trim()
     
     if (text.length > 10) {
-      messages.push({ text, messageId })
+      messages.push({ text, messageId: topicId ? `${topicId}_${messageId}` : messageId })
     }
   }
   
-  console.log(`Found ${messages.length} total messages in ${username}`)
+  console.log(`Found ${messages.length} total messages in ${username}${topicId ? ` (topic ${topicId})` : ''}`)
   
   // Фильтруем только сообщения с датой DD.MM
   const trainingMessages = messages.filter(msg => containsTrainingDate(msg.text).valid)
@@ -651,9 +656,9 @@ async function fetchTelegramChannel(username: string): Promise<{ text: string, m
 }
 
 // Извлечение URL изображений из HTML канала с фильтрацией по дате
-async function fetchTelegramChannelImages(username: string): Promise<{ imageUrl: string, messageId: string, postDate: Date | null }[]> {
+async function fetchTelegramChannelImages(username: string, topicId?: number | null): Promise<{ imageUrl: string, messageId: string, postDate: Date | null }[]> {
   const url = `https://t.me/s/${username}`
-  console.log(`Fetching channel images: ${url}`)
+  console.log(`Fetching channel images: ${url}${topicId ? ` (topic: ${topicId})` : ''}`)
   
   const response = await fetch(url, {
     headers: {
@@ -670,8 +675,11 @@ async function fetchTelegramChannelImages(username: string): Promise<{ imageUrl:
   const images: { imageUrl: string, messageId: string, postDate: Date | null }[] = []
   
   // Ищем сообщения с изображениями
-  // Формат: data-post="channel/123" ... background-image:url('...')
-  const messageBlockRegex = /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?(?=data-post="|$)/g
+  // Формат для супергрупп с топиками: data-post="username/topicId/messageId"
+  // Формат для обычных каналов: data-post="channel/123"
+  const messageBlockRegex = topicId
+    ? new RegExp(`data-post="${username}/${topicId}/(\\d+)"[^>]*>[\\s\\S]*?(?=data-post="|$)`, 'g')
+    : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?(?=data-post="|$)/g
   let blockMatch
   
   while ((blockMatch = messageBlockRegex.exec(html)) !== null) {
@@ -691,7 +699,7 @@ async function fetchTelegramChannelImages(username: string): Promise<{ imageUrl:
       const imageUrl = imgMatch[1]
       // Фильтруем только реальные изображения (не аватарки и т.д.)
       if (imageUrl && !imageUrl.includes('userpic') && imageUrl.includes('cdn')) {
-        images.push({ imageUrl, messageId, postDate })
+        images.push({ imageUrl, messageId: topicId ? `${topicId}_${messageId}` : messageId, postDate })
       }
     }
     
@@ -700,12 +708,12 @@ async function fetchTelegramChannelImages(username: string): Promise<{ imageUrl:
     for (const imgMatch of imgTagMatches) {
       const imageUrl = imgMatch[1]
       if (imageUrl && !imageUrl.includes('userpic') && imageUrl.includes('cdn')) {
-        images.push({ imageUrl, messageId, postDate })
+        images.push({ imageUrl, messageId: topicId ? `${topicId}_${messageId}` : messageId, postDate })
       }
     }
   }
   
-  console.log(`Found ${images.length} total images in ${username}`)
+  console.log(`Found ${images.length} total images in ${username}${topicId ? ` (topic ${topicId})` : ''}`)
   
   // Фильтруем по дате: только текущий и прошлый месяц
   const now = new Date()
@@ -1063,12 +1071,12 @@ Deno.serve(async (req) => {
     let totalFromCache = 0
 
     for (const channel of channels as Channel[]) {
-      console.log(`\n=== Processing channel: ${channel.name} (@${channel.username}) ===`)
+      console.log(`\n=== Processing channel: ${channel.name} (@${channel.username})${channel.topic_id ? ` [topic: ${channel.topic_id}]` : ''} ===`)
       console.log(`Parse mode: ${channel.parse_images ? 'IMAGES' : 'TEXT'}`)
       
       if (channel.parse_images) {
         // ===== РЕЖИМ ПАРСИНГА ИЗОБРАЖЕНИЙ =====
-        const images = await fetchTelegramChannelImages(channel.username)
+        const images = await fetchTelegramChannelImages(channel.username, channel.topic_id)
         totalParsed += images.length
         
         for (const img of images) {
@@ -1190,7 +1198,7 @@ Deno.serve(async (req) => {
         }
       } else {
         // ===== РЕЖИМ ПАРСИНГА ТЕКСТА (существующая логика) =====
-        const messages = await fetchTelegramChannel(channel.username)
+        const messages = await fetchTelegramChannel(channel.username, channel.topic_id)
         totalParsed += messages.length
         
         const trainingsToUpsert = []

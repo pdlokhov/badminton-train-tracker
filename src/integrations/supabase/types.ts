@@ -134,6 +134,7 @@ export type Database = {
           is_active: boolean
           name: string
           parse_images: boolean
+          topic_id: number | null
           updated_at: string
           url: string
           username: string
@@ -146,6 +147,7 @@ export type Database = {
           is_active?: boolean
           name: string
           parse_images?: boolean
+          topic_id?: number | null
           updated_at?: string
           url: string
           username: string
@@ -158,6 +160,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           parse_images?: boolean
+          topic_id?: number | null
           updated_at?: string
           url?: string
           username?: string
