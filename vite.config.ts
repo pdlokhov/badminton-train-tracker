@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'og-image.png'],
+      includeAssets: ['favicon.png', 'og-image.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Бадминтон СПБ - Расписание тренировок',
         short_name: 'Бадминтон СПБ',
