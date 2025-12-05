@@ -5,6 +5,7 @@ import { ru } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useToast } from "@/hooks/use-toast";
+import { openExternalUrl } from "@/lib/openExternalUrl";
 import { SearchBar } from "./SearchBar";
 import { TrainingCard } from "./TrainingCard";
 import { MobileTrainingItem } from "./MobileTrainingItem";
@@ -548,7 +549,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
                 const url = getTelegramUrl(training);
                 if (url) {
                   trackTelegramRedirect(id, clubName, type);
-                  window.open(url, "_blank");
+                  openExternalUrl(url);
                 }
               }}
             />
