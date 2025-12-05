@@ -149,6 +149,33 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     fetchTrainings();
   }, [refreshTrigger, dateFilter, coachFilter, levelFilter, typeFilter, channelFilter]);
 
+  // Realtime subscription for live updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('trainings-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trainings',
+        },
+        (payload) => {
+          console.log('Training changed:', payload.eventType);
+          fetchTrainings();
+          toast({
+            title: "Расписание обновлено",
+            duration: 2000,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [dateFilter]);
+
   // Reset filters
   const resetFilters = () => {
     setCoachFilter("all");
