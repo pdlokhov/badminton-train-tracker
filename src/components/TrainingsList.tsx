@@ -103,7 +103,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name, default_coach, username, default_location_id, default_location:locations(name, address)), location_data:locations(name, address)")
+      .select("*, channels(name, default_coach, username, default_location_id, permanent_signup_url, default_location:locations(name, address)), location_data:locations(name, address)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
 
