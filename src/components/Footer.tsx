@@ -3,6 +3,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
+const APP_VERSION = "1.0.1";
+
 export const Footer = () => {
   const { isAdmin, signOut } = useAuth();
 
@@ -11,6 +13,7 @@ export const Footer = () => {
       <div className="mx-auto max-w-6xl px-4 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           © {new Date().getFullYear()} Расписание тренировок
+          <span className="ml-2 text-xs text-muted-foreground/50">v{APP_VERSION}</span>
         </p>
         <div className="flex items-center gap-4">
           {isAdmin ? (
