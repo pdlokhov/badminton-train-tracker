@@ -50,14 +50,11 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
+            // API calls - always fetch fresh data, no caching
             urlPattern: /^https:\/\/xqquqrsqtnjnzvyubhzc\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly',
             options: {
-              cacheName: 'supabase-api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 5
-              }
+              cacheName: 'supabase-api-no-cache'
             }
           }
         ]
