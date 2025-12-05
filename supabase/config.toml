@@ -3,9 +3,6 @@ project_id = "xqquqrsqtnjnzvyubhzc"
 [functions.parse-channels]
 verify_jwt = true
 
-[functions.setup-admin]
-verify_jwt = false
-
 [functions.aggregate-analytics]
 verify_jwt = false
 
