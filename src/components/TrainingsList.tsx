@@ -42,8 +42,9 @@ interface Training {
     default_coach: string | null; 
     username: string;
     default_location_id: string | null;
+    permanent_signup_url?: string | null;
     default_location?: { name: string; address: string | null } | null;
-  };
+  } | null;
   location_data?: { name: string; address: string | null } | null;
 }
 
@@ -124,7 +125,8 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     if (error) {
       console.error("Error fetching trainings:", error);
     } else {
-      setTrainings(data || []);
+      // Cast to include permanent_signup_url from channels (column exists but types not yet regenerated)
+      setTrainings((data || []) as Training[]);
       
       const uniqueCoaches = new Set<string>();
       const uniqueLevels = new Set<string>();
@@ -345,10 +347,15 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   };
 
   const getTelegramUrl = (training: Training) => {
-    // Priority: signup_url (manual), then auto-parsed message URL
+    // Priority 1: permanent channel URL (overrides everything)
+    if (training.channels?.permanent_signup_url) {
+      return training.channels.permanent_signup_url;
+    }
+    // Priority 2: training-specific signup URL
     if (training.signup_url) {
       return training.signup_url;
     }
+    // Priority 3: auto-generated message URL
     if (training.channels?.username && training.message_id) {
       return `https://t.me/${training.channels.username}/${training.message_id}`;
     }
