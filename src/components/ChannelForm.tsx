@@ -46,7 +46,8 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const [defaultCoach, setDefaultCoach] = useState("");
   const [parseImages, setParseImages] = useState(false);
   const [topicId, setTopicId] = useState("");
-  const [permanentSignupUrl, setPermanentSignupUrl] = useState("");
+  const [permanentSignupUrlGame, setPermanentSignupUrlGame] = useState("");
+  const [permanentSignupUrlGroup, setPermanentSignupUrlGroup] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -106,7 +107,8 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         parse_images: parseImages,
         default_coach: defaultCoach.trim() || null,
         topic_id: finalTopicId || null,
-        permanent_signup_url: permanentSignupUrl.trim() || null,
+        permanent_signup_url_game: permanentSignupUrlGame.trim() || null,
+        permanent_signup_url_group: permanentSignupUrlGroup.trim() || null,
       });
 
       if (error) {
@@ -138,7 +140,8 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       setDefaultCoach("");
       setParseImages(false);
       setTopicId("");
-      setPermanentSignupUrl("");
+      setPermanentSignupUrlGame("");
+      setPermanentSignupUrlGroup("");
       onChannelAdded();
     } catch (error) {
       console.error("Error adding channel:", error);
@@ -199,19 +202,31 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
           />
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="permanentSignupUrl">Постоянная ссылка для записи</Label>
-        <Input
-          id="permanentSignupUrl"
-          placeholder="https://t.me/club_bot или ссылка на форму (опционально)"
-          value={permanentSignupUrl}
-          onChange={(e) => setPermanentSignupUrl(e.target.value)}
-          maxLength={500}
-        />
-        <p className="text-xs text-muted-foreground">
-          Если указана, все карточки тренировок клуба будут вести на эту ссылку
-        </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="permanentSignupUrlGame">Ссылка для игровых тренировок</Label>
+          <Input
+            id="permanentSignupUrlGame"
+            placeholder="https://t.me/club_bot (опционально)"
+            value={permanentSignupUrlGame}
+            onChange={(e) => setPermanentSignupUrlGame(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="permanentSignupUrlGroup">Ссылка для групповых тренировок</Label>
+          <Input
+            id="permanentSignupUrlGroup"
+            placeholder="https://t.me/club_bot (опционально)"
+            value={permanentSignupUrlGroup}
+            onChange={(e) => setPermanentSignupUrlGroup(e.target.value)}
+            maxLength={500}
+          />
+        </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Если указаны, карточки тренировок будут вести на соответствующие ссылки
+      </p>
       <div className="flex items-center space-x-2">
         <Checkbox
           id="parse_images"

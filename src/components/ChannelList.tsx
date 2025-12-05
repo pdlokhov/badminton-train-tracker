@@ -50,7 +50,8 @@ interface Channel {
   parse_images: boolean;
   default_coach: string | null;
   default_location_id: string | null;
-  permanent_signup_url?: string | null;
+  permanent_signup_url_game?: string | null;
+  permanent_signup_url_group?: string | null;
   created_at: string;
 }
 
@@ -71,7 +72,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
   const [editName, setEditName] = useState("");
   const [editDefaultCoach, setEditDefaultCoach] = useState("");
   const [editDefaultLocationId, setEditDefaultLocationId] = useState<string | null>(null);
-  const [editPermanentSignupUrl, setEditPermanentSignupUrl] = useState("");
+  const [editPermanentSignupUrlGame, setEditPermanentSignupUrlGame] = useState("");
+  const [editPermanentSignupUrlGroup, setEditPermanentSignupUrlGroup] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -170,7 +172,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
     setEditName(channel.name);
     setEditDefaultCoach(channel.default_coach || "");
     setEditDefaultLocationId(channel.default_location_id);
-    setEditPermanentSignupUrl(channel.permanent_signup_url || "");
+    setEditPermanentSignupUrlGame(channel.permanent_signup_url_game || "");
+    setEditPermanentSignupUrlGroup(channel.permanent_signup_url_group || "");
   };
 
   const handleSaveEdit = async () => {
@@ -184,7 +187,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
           name: editName.trim(),
           default_coach: editDefaultCoach.trim() || null,
           default_location_id: editDefaultLocationId,
-          permanent_signup_url: editPermanentSignupUrl.trim() || null,
+          permanent_signup_url_game: editPermanentSignupUrlGame.trim() || null,
+          permanent_signup_url_group: editPermanentSignupUrlGroup.trim() || null,
         })
         .eq("id", editingChannel.id);
 
@@ -198,7 +202,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                 name: editName.trim(), 
                 default_coach: editDefaultCoach.trim() || null,
                 default_location_id: editDefaultLocationId,
-                permanent_signup_url: editPermanentSignupUrl.trim() || null,
+                permanent_signup_url_game: editPermanentSignupUrlGame.trim() || null,
+                permanent_signup_url_group: editPermanentSignupUrlGroup.trim() || null,
               }
             : ch
         )
@@ -387,16 +392,26 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-permanent-url">Постоянная ссылка для записи</Label>
+              <Label htmlFor="edit-permanent-url-game">Ссылка для игровых тренировок</Label>
               <Input
-                id="edit-permanent-url"
+                id="edit-permanent-url-game"
                 placeholder="https://t.me/club_bot или ссылка на форму"
-                value={editPermanentSignupUrl}
-                onChange={(e) => setEditPermanentSignupUrl(e.target.value)}
+                value={editPermanentSignupUrlGame}
+                onChange={(e) => setEditPermanentSignupUrlGame(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-permanent-url-group">Ссылка для групповых тренировок</Label>
+              <Input
+                id="edit-permanent-url-group"
+                placeholder="https://t.me/club_bot или ссылка на форму"
+                value={editPermanentSignupUrlGroup}
+                onChange={(e) => setEditPermanentSignupUrlGroup(e.target.value)}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground">
-                Если указана, все карточки тренировок клуба будут вести на эту ссылку
+                Если указаны, карточки тренировок будут вести на соответствующие ссылки
               </p>
             </div>
           </div>
