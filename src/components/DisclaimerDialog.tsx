@@ -35,13 +35,11 @@ export function DisclaimerDialog() {
     try {
       const visitorId = getOrCreateVisitorId();
       
-      const { data } = await supabase
-        .from("disclaimer_acknowledgments")
-        .select("id")
-        .eq("visitor_id", visitorId)
-        .maybeSingle();
+      // Use RPC function instead of direct table query for security
+      const { data: hasAcknowledged } = await supabase
+        .rpc("check_disclaimer", { p_visitor_id: visitorId });
 
-      if (!data) {
+      if (!hasAcknowledged) {
         setIsOpen(true);
       }
     } catch (error) {
