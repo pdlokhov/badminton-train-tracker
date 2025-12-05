@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 const VISITOR_ID_KEY = "disclaimer_visitor_id";
+const ACKNOWLEDGED_KEY = "disclaimer_acknowledged";
 
 const generateVisitorId = (): string => {
   return "visitor_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -33,17 +34,28 @@ export function DisclaimerDialog() {
 
   const checkDisclaimerStatus = async () => {
     try {
+      // Priority 1: Check localStorage (for PWA and offline)
+      const localAcknowledged = localStorage.getItem(ACKNOWLEDGED_KEY);
+      if (localAcknowledged === "true") {
+        setIsLoading(false);
+        return;
+      }
+
+      // Priority 2: Check database
       const visitorId = getOrCreateVisitorId();
-      
-      // Use RPC function instead of direct table query for security
       const { data: hasAcknowledged } = await supabase
         .rpc("check_disclaimer", { p_visitor_id: visitorId });
 
-      if (!hasAcknowledged) {
+      if (hasAcknowledged) {
+        // Sync localStorage with database
+        localStorage.setItem(ACKNOWLEDGED_KEY, "true");
+      } else {
         setIsOpen(true);
       }
     } catch (error) {
       console.error("Error checking disclaimer status:", error);
+      // On network error, show dialog only if no local acknowledgment
+      setIsOpen(true);
     } finally {
       setIsLoading(false);
     }
@@ -57,9 +69,13 @@ export function DisclaimerDialog() {
         .from("disclaimer_acknowledgments")
         .insert({ visitor_id: visitorId });
 
+      // Save locally for PWA
+      localStorage.setItem(ACKNOWLEDGED_KEY, "true");
       setIsOpen(false);
     } catch (error) {
       console.error("Error saving disclaimer acknowledgment:", error);
+      // Even on error, save locally to not annoy the user
+      localStorage.setItem(ACKNOWLEDGED_KEY, "true");
       setIsOpen(false);
     }
   };
