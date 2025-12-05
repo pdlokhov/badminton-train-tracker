@@ -12,6 +12,7 @@ import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
 import { DisclaimerDialog } from "@/components/DisclaimerDialog";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -203,6 +204,9 @@ const Index = () => {
 
       {/* Cookie Consent Banner */}
       <CookieConsent />
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {/* Disclaimer Dialog */}
       <DisclaimerDialog />
