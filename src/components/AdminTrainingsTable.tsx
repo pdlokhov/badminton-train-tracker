@@ -44,6 +44,8 @@ interface Training {
     name: string;
     default_coach: string | null;
     username: string;
+    permanent_signup_url_game?: string | null;
+    permanent_signup_url_group?: string | null;
   };
   locationDisplay?: string | null;
 }
@@ -95,10 +97,20 @@ export function AdminTrainingsTable({
   };
 
   const getTelegramUrl = (training: Training) => {
-    // Priority: signup_url (manual), then auto-parsed message URL
+    // Priority 1: permanent channel URL based on training type
+    const isGameTraining = training.type?.toLowerCase().includes('игров');
+    const permanentUrl = isGameTraining 
+      ? training.channels?.permanent_signup_url_game 
+      : training.channels?.permanent_signup_url_group;
+    
+    if (permanentUrl) {
+      return permanentUrl;
+    }
+    // Priority 2: training-specific signup URL
     if (training.signup_url) {
       return training.signup_url;
     }
+    // Priority 3: auto-generated message URL
     if (training.channels?.username && training.message_id) {
       return `https://t.me/${training.channels.username}/${training.message_id}`;
     }
