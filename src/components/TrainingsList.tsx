@@ -42,7 +42,8 @@ interface Training {
     default_coach: string | null; 
     username: string;
     default_location_id: string | null;
-    permanent_signup_url?: string | null;
+    permanent_signup_url_game?: string | null;
+    permanent_signup_url_group?: string | null;
     default_location?: { name: string; address: string | null } | null;
   } | null;
   location_data?: { name: string; address: string | null } | null;
@@ -103,7 +104,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     
     let query = supabase
       .from("trainings")
-      .select("*, channels(name, default_coach, username, default_location_id, permanent_signup_url, default_location:locations(name, address)), location_data:locations(name, address)")
+      .select("*, channels(name, default_coach, username, default_location_id, permanent_signup_url_game, permanent_signup_url_group, default_location:locations(name, address)), location_data:locations(name, address)")
       .eq("date", filterDate)
       .order("time_start", { ascending: true, nullsFirst: false });
 
@@ -347,9 +348,14 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   };
 
   const getTelegramUrl = (training: Training) => {
-    // Priority 1: permanent channel URL (overrides everything)
-    if (training.channels?.permanent_signup_url) {
-      return training.channels.permanent_signup_url;
+    // Priority 1: permanent channel URL based on training type
+    const isGameTraining = training.type?.toLowerCase().includes('игров');
+    const permanentUrl = isGameTraining 
+      ? training.channels?.permanent_signup_url_game 
+      : training.channels?.permanent_signup_url_group;
+    
+    if (permanentUrl) {
+      return permanentUrl;
     }
     // Priority 2: training-specific signup URL
     if (training.signup_url) {

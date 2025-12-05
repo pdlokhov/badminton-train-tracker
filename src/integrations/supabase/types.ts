@@ -134,7 +134,8 @@ export type Database = {
           is_active: boolean
           name: string
           parse_images: boolean
-          permanent_signup_url: string | null
+          permanent_signup_url_game: string | null
+          permanent_signup_url_group: string | null
           topic_id: number | null
           updated_at: string
           url: string
@@ -148,7 +149,8 @@ export type Database = {
           is_active?: boolean
           name: string
           parse_images?: boolean
-          permanent_signup_url?: string | null
+          permanent_signup_url_game?: string | null
+          permanent_signup_url_group?: string | null
           topic_id?: number | null
           updated_at?: string
           url: string
@@ -162,7 +164,8 @@ export type Database = {
           is_active?: boolean
           name?: string
           parse_images?: boolean
-          permanent_signup_url?: string | null
+          permanent_signup_url_game?: string | null
+          permanent_signup_url_group?: string | null
           topic_id?: number | null
           updated_at?: string
           url?: string
