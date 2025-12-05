@@ -50,6 +50,7 @@ interface Channel {
   parse_images: boolean;
   default_coach: string | null;
   default_location_id: string | null;
+  permanent_signup_url?: string | null;
   created_at: string;
 }
 
@@ -70,6 +71,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
   const [editName, setEditName] = useState("");
   const [editDefaultCoach, setEditDefaultCoach] = useState("");
   const [editDefaultLocationId, setEditDefaultLocationId] = useState<string | null>(null);
+  const [editPermanentSignupUrl, setEditPermanentSignupUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -81,7 +83,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setChannels(data || []);
+      // Cast to include permanent_signup_url (column exists but types not yet regenerated)
+      setChannels((data || []) as Channel[]);
     } catch (error) {
       console.error("Error fetching channels:", error);
       toast({
@@ -167,6 +170,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
     setEditName(channel.name);
     setEditDefaultCoach(channel.default_coach || "");
     setEditDefaultLocationId(channel.default_location_id);
+    setEditPermanentSignupUrl(channel.permanent_signup_url || "");
   };
 
   const handleSaveEdit = async () => {
@@ -180,6 +184,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
           name: editName.trim(),
           default_coach: editDefaultCoach.trim() || null,
           default_location_id: editDefaultLocationId,
+          permanent_signup_url: editPermanentSignupUrl.trim() || null,
         })
         .eq("id", editingChannel.id);
 
@@ -193,6 +198,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                 name: editName.trim(), 
                 default_coach: editDefaultCoach.trim() || null,
                 default_location_id: editDefaultLocationId,
+                permanent_signup_url: editPermanentSignupUrl.trim() || null,
               }
             : ch
         )
@@ -378,6 +384,19 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Если указана, будет отображаться для всех тренировок этого клуба
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-permanent-url">Постоянная ссылка для записи</Label>
+              <Input
+                id="edit-permanent-url"
+                placeholder="https://t.me/club_bot или ссылка на форму"
+                value={editPermanentSignupUrl}
+                onChange={(e) => setEditPermanentSignupUrl(e.target.value)}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">
+                Если указана, все карточки тренировок клуба будут вести на эту ссылку
               </p>
             </div>
           </div>
