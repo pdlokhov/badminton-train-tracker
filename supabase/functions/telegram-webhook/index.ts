@@ -201,39 +201,20 @@ function isJson(text: string): boolean {
   }
 }
 
-// Find or create channel by bot username
-async function findOrCreateChannel(supabase: any, botUsername: string, chatTitle: string | undefined): Promise<string | null> {
-  // Try to find existing channel by bot username
+// Find existing channel by bot username (no auto-creation for security)
+async function findChannel(supabase: any, botUsername: string): Promise<string | null> {
   const { data: existingChannel } = await supabase
     .from('channels')
     .select('id')
     .eq('username', botUsername)
-    .single();
+    .maybeSingle();
 
   if (existingChannel) {
     return existingChannel.id;
   }
 
-  // Create new channel for this bot
-  const channelName = chatTitle || botUsername;
-  const { data: newChannel, error } = await supabase
-    .from('channels')
-    .insert({
-      name: channelName,
-      username: botUsername,
-      url: `https://t.me/${botUsername}`,
-      is_active: true,
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    console.error('Error creating channel:', error);
-    return null;
-  }
-
-  console.log(`Created new channel: ${channelName} (${newChannel.id})`);
-  return newChannel.id;
+  console.log(`Channel not found for bot: ${botUsername}. Register it in admin panel first.`);
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -294,11 +275,15 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Find or create channel
-    const channelId = await findOrCreateChannel(supabase, botUsername, chatTitle);
+    // Find existing channel (must be pre-registered in admin panel)
+    const channelId = await findChannel(supabase, botUsername);
     if (!channelId) {
-      return new Response(JSON.stringify({ ok: false, error: 'Could not find or create channel' }), {
-        status: 500,
+      console.log(`Skipping message from unregistered bot: ${botUsername}`);
+      return new Response(JSON.stringify({ 
+        ok: true, 
+        skipped: true, 
+        reason: `Channel not registered: ${botUsername}. Add it in admin panel first.` 
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
