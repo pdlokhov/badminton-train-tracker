@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+import { openExternalUrl } from "@/lib/openExternalUrl";
 
 interface TrainingCardProps {
   id: string;
@@ -43,7 +44,7 @@ export function TrainingCard({
   const handleClick = () => {
     if (telegramUrl) {
       onTelegramClick?.(id, clubName || "", type);
-      window.open(telegramUrl, "_blank");
+      openExternalUrl(telegramUrl);
     }
   };
 
