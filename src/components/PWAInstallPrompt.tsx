@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { X, Download, Share } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAnalytics } from "@/hooks/useAnalytics";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -13,6 +14,14 @@ export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
   const isMobile = useIsMobile();
+  const { trackEvent } = useAnalytics();
+  const hasTrackedView = useRef(false);
+
+  const getPlatform = () => {
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return "ios";
+    if (/Android/.test(navigator.userAgent)) return "android";
+    return "other";
+  };
 
   useEffect(() => {
     // Check if already dismissed
@@ -55,18 +64,39 @@ export function PWAInstallPrompt() {
     };
   }, [isMobile]);
 
+  // Track banner view once when it becomes visible
+  useEffect(() => {
+    if (isVisible && !hasTrackedView.current) {
+      hasTrackedView.current = true;
+      trackEvent("pwa_banner_view", { platform: getPlatform() });
+    }
+  }, [isVisible, trackEvent]);
+
   const handleInstall = async () => {
     if (deferredPrompt) {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
+      
       if (outcome === "accepted") {
+        trackEvent("pwa_install", { platform: "android" });
         setIsVisible(false);
+      } else {
+        trackEvent("pwa_install_cancelled", { platform: "android" });
       }
       setDeferredPrompt(null);
     }
   };
 
   const handleDismiss = () => {
+    trackEvent("pwa_banner_dismiss", { platform: getPlatform() });
+    localStorage.setItem("pwa-install-dismissed", "true");
+    localStorage.setItem("pwa-install-dismissed-time", Date.now().toString());
+    setIsVisible(false);
+  };
+
+  // Track iOS "Got it" as potential install intent
+  const handleIOSConfirm = () => {
+    trackEvent("pwa_ios_instructions_viewed", { platform: "ios" });
     localStorage.setItem("pwa-install-dismissed", "true");
     localStorage.setItem("pwa-install-dismissed-time", Date.now().toString());
     setIsVisible(false);
@@ -111,7 +141,11 @@ export function PWAInstallPrompt() {
               Установить
             </Button>
           )}
-          <Button onClick={handleDismiss} variant="outline" size="sm">
+          <Button 
+            onClick={isIOS ? handleIOSConfirm : handleDismiss} 
+            variant="outline" 
+            size="sm"
+          >
             {isIOS ? "Понятно" : "Не сейчас"}
           </Button>
         </div>
