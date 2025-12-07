@@ -375,15 +375,28 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   let time_start: string | null = null
   let time_end: string | null = null
   
-  // 1. Сначала пробуем найти диапазон времени с двоеточием: "21:00-23:00"
-  const timeRangeMatch = text.match(/(\d{1,2}:\d{2})\s*[-–—до]\s*(\d{1,2}:\d{2})/)
-  if (timeRangeMatch) {
-    time_start = timeRangeMatch[1]
-    time_end = timeRangeMatch[2]
-    console.log(`Message ${messageId}: time range with colon = ${time_start} - ${time_end}`)
+  // Функция нормализации времени: заменяем точки на двоеточия (13.00 -> 13:00)
+  const normalizeTime = (t: string): string => t.replace('.', ':')
+  
+  // 1. Ищем структурированный формат "Время: HH:MM-HH:MM" или "Время: HH.MM – HH.MM"
+  const structuredTimeMatch = text.match(/время\s*:?\s*(\d{1,2}[.:]\d{2})\s*[-–—]\s*(\d{1,2}[.:]\d{2})/i)
+  if (structuredTimeMatch) {
+    time_start = normalizeTime(structuredTimeMatch[1])
+    time_end = normalizeTime(structuredTimeMatch[2])
+    console.log(`Message ${messageId}: structured time = ${time_start} - ${time_end}`)
   }
   
-  // 2. Если не нашли, ищем формат "с X до Y" (часы без минут): "с 21 до 23"
+  // 2. Пробуем найти диапазон времени: "21:00-23:00" или "21.00 – 23.00"
+  if (!time_start) {
+    const timeRangeMatch = text.match(/(\d{1,2}[.:]\d{2})\s*[-–—до]\s*(\d{1,2}[.:]\d{2})/)
+    if (timeRangeMatch) {
+      time_start = normalizeTime(timeRangeMatch[1])
+      time_end = normalizeTime(timeRangeMatch[2])
+      console.log(`Message ${messageId}: time range = ${time_start} - ${time_end}`)
+    }
+  }
+  
+  // 3. Если не нашли, ищем формат "с X до Y" (часы без минут): "с 21 до 23"
   if (!time_start) {
     const timeHoursOnlyMatch = text.match(/с\s*(\d{1,2})\s*до\s*(\d{1,2})/i)
     if (timeHoursOnlyMatch) {
@@ -398,17 +411,17 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
-  // 3. Если всё ещё не нашли, ищем отдельные времена с двоеточием
+  // 4. Если всё ещё не нашли, ищем отдельные времена с двоеточием или точкой
   if (!time_start) {
-    const timeRegex = /\b([01]?\d|2[0-3]):([0-5]\d)\b/g
-    const timeMatches = text.match(timeRegex)
+    const timeRegex = /\b([01]?\d|2[0-3])[.:]([0-5]\d)\b/g
+    const timeMatches = [...text.matchAll(timeRegex)]
     
-    if (timeMatches && timeMatches.length >= 1) {
-      time_start = timeMatches[0]
+    if (timeMatches.length >= 1) {
+      time_start = `${timeMatches[0][1]}:${timeMatches[0][2]}`
       if (timeMatches.length >= 2) {
-        time_end = timeMatches[1]
+        time_end = `${timeMatches[1][1]}:${timeMatches[1][2]}`
       }
-      console.log(`Message ${messageId}: times found = ${timeMatches.join(', ')}`)
+      console.log(`Message ${messageId}: individual times found = ${time_start}${time_end ? ' - ' + time_end : ''}`)
     }
   }
   
