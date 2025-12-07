@@ -515,6 +515,25 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
+  // 4.6. Ищем текстовые уровни ВМЯЧ: «Старт», «Комфорт», «Прайм», Смешанная
+  if (!level) {
+    const vmyachLevelMatch = text.match(/(?:уровень|level|ур\.?)\s*:?\s*[«"]?(\s*(?:старт|комфорт|прайм|смешанн[а-я]*)\s*)[»"]?/i)
+    if (vmyachLevelMatch) {
+      // Нормализуем: убираем кавычки и лишние пробелы, приводим к стандартному виду
+      const rawLevel = vmyachLevelMatch[1].trim().toLowerCase()
+      if (rawLevel.includes('старт')) {
+        level = 'Старт'
+      } else if (rawLevel.includes('комфорт')) {
+        level = 'Комфорт'
+      } else if (rawLevel.includes('прайм')) {
+        level = 'Прайм'
+      } else if (rawLevel.includes('смешанн')) {
+        level = 'Смешанная'
+      }
+      console.log(`Message ${messageId}: found VMYACH text level = ${level}`)
+    }
+  }
+  
   // 5. Ищем уровень в контексте "НОВИЧКИ E-F"
   if (!level) {
     const noviceMatch = text.match(/(?:новичк[иа]?|начинающ[ие]+)\s*([A-FА-Е](?:\s*[-–—\/]\s*[A-FА-Е])?)/i)
