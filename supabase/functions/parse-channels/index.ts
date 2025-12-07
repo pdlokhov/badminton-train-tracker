@@ -1094,14 +1094,20 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Processing ${channels.length} channels`)
+    // Сортируем каналы: сначала текстовые (быстрые), потом с изображениями (медленные)
+    const sortedChannels = [...(channels as Channel[])].sort((a, b) => {
+      if (a.parse_images === b.parse_images) return 0
+      return a.parse_images ? 1 : -1  // текстовые (false) первые
+    })
+    
+    console.log(`Processing ${sortedChannels.length} channels (text first, then images)`)
     
     let totalParsed = 0
     let totalAdded = 0
     let totalSkipped = 0
     let totalFromCache = 0
 
-    for (const channel of channels as Channel[]) {
+    for (const channel of sortedChannels) {
       console.log(`\n=== Processing channel: ${channel.name} (@${channel.username})${channel.topic_id ? ` [topic: ${channel.topic_id}]` : ''} ===`)
       console.log(`Parse mode: ${channel.parse_images ? 'IMAGES' : 'TEXT'}`)
       
