@@ -170,8 +170,13 @@ function findLocation(text: string, knownLocations: Location[]): { name: string;
 
 // Определяет, является ли сообщение недельным расписанием
 function isWeeklySchedule(text: string): boolean {
-  // Проверяем ключевые слова
-  const hasWeeklyKeywords = /(?:на\s+)?(?:следующ[уюа]+|текущ[уюа]+)\s+недел[юу]|расписание\s+(?:на\s+)?недел[юу]/i.test(text)
+  // Проверяем ключевые слова (с учётом промежуточных слов, например "расписание тренировок на неделю")
+  const hasWeeklyKeywords = /(?:на\s+)?(?:следующ[уюа]+|текущ[уюа]+)\s+недел[юу]/i.test(text)
+    || /расписание(?:\s+\S+)*\s+на\s+недел[юу]/i.test(text)
+    || /расписание\s+(?:на\s+)?недел[юу]/i.test(text)
+  
+  // Проверяем наличие диапазона дат DD.MM - DD.MM (индикатор недельного расписания)
+  const hasDateRange = /\d{1,2}\.\d{1,2}\s*[-–—]\s*\d{1,2}\.\d{1,2}/.test(text)
   
   // Проверяем наличие нескольких дней недели
   const dayNames = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
@@ -180,7 +185,7 @@ function isWeeklySchedule(text: string): boolean {
   // Проверяем наличие нескольких дат в формате (DD.MM)
   const dateMatches = text.match(/\((\d{1,2}\.\d{1,2})\)/g)
   
-  return hasWeeklyKeywords || foundDays.length >= 2 || (dateMatches !== null && dateMatches.length >= 2)
+  return hasWeeklyKeywords || hasDateRange || foundDays.length >= 2 || (dateMatches !== null && dateMatches.length >= 2)
 }
 
 // Парсит недельное расписание и возвращает массив тренировок
@@ -389,11 +394,11 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   // Удаляем диапазоны дат типа "08.12 - 14.12" или "8.12-14.12"
   textForTimeSearch = textForTimeSearch.replace(/\d{1,2}\.\d{1,2}\s*[-–—]\s*\d{1,2}\.\d{1,2}/g, ' ')
   
-  // Удаляем все оставшиеся даты DD.MM (без года)
-  textForTimeSearch = textForTimeSearch.replace(/\b\d{1,2}\.\d{1,2}\b/g, ' ')
+  // Удаляем все оставшиеся даты DD.MM (БЕЗ word boundary, чтобы матчить даты после | и других символов)
+  textForTimeSearch = textForTimeSearch.replace(/\d{1,2}\.\d{1,2}/g, ' ')
   
   console.log(`Message ${messageId}: text for time search = "${textForTimeSearch.substring(0, 100)}..."`)
-  
+
   // 1. Ищем структурированный формат "Время: HH:MM-HH:MM" или "Время: HH.MM – HH.MM"
   const structuredTimeMatch = textForTimeSearch.match(/время\s*:?\s*(\d{1,2}[.:]\d{2})\s*[-–—]\s*(\d{1,2}[.:]\d{2})/i)
   if (structuredTimeMatch) {
