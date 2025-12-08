@@ -378,8 +378,24 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   // Функция нормализации времени: заменяем точки на двоеточия (13.00 -> 13:00)
   const normalizeTime = (t: string): string => t.replace('.', ':')
   
+  // ВАЖНО: Удаляем даты из текста перед поиском времени, чтобы "08.12" не парсилось как "08:12"
+  let textForTimeSearch = text
+  
+  // Удаляем найденную дату DD.MM(.YYYY)
+  if (dateMatch) {
+    textForTimeSearch = textForTimeSearch.replace(dateMatch[0], ' ')
+  }
+  
+  // Удаляем диапазоны дат типа "08.12 - 14.12" или "8.12-14.12"
+  textForTimeSearch = textForTimeSearch.replace(/\d{1,2}\.\d{1,2}\s*[-–—]\s*\d{1,2}\.\d{1,2}/g, ' ')
+  
+  // Удаляем все оставшиеся даты DD.MM (без года)
+  textForTimeSearch = textForTimeSearch.replace(/\b\d{1,2}\.\d{1,2}\b/g, ' ')
+  
+  console.log(`Message ${messageId}: text for time search = "${textForTimeSearch.substring(0, 100)}..."`)
+  
   // 1. Ищем структурированный формат "Время: HH:MM-HH:MM" или "Время: HH.MM – HH.MM"
-  const structuredTimeMatch = text.match(/время\s*:?\s*(\d{1,2}[.:]\d{2})\s*[-–—]\s*(\d{1,2}[.:]\d{2})/i)
+  const structuredTimeMatch = textForTimeSearch.match(/время\s*:?\s*(\d{1,2}[.:]\d{2})\s*[-–—]\s*(\d{1,2}[.:]\d{2})/i)
   if (structuredTimeMatch) {
     time_start = normalizeTime(structuredTimeMatch[1])
     time_end = normalizeTime(structuredTimeMatch[2])
@@ -388,7 +404,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   
   // 2. Пробуем найти диапазон времени: "21:00-23:00" или "21.00 – 23.00"
   if (!time_start) {
-    const timeRangeMatch = text.match(/(\d{1,2}[.:]\d{2})\s*[-–—до]\s*(\d{1,2}[.:]\d{2})/)
+    const timeRangeMatch = textForTimeSearch.match(/(\d{1,2}[.:]\d{2})\s*[-–—до]\s*(\d{1,2}[.:]\d{2})/)
     if (timeRangeMatch) {
       time_start = normalizeTime(timeRangeMatch[1])
       time_end = normalizeTime(timeRangeMatch[2])
@@ -398,7 +414,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   
   // 3. Если не нашли, ищем формат "с X до Y" (часы без минут): "с 21 до 23"
   if (!time_start) {
-    const timeHoursOnlyMatch = text.match(/с\s*(\d{1,2})\s*до\s*(\d{1,2})/i)
+    const timeHoursOnlyMatch = textForTimeSearch.match(/с\s*(\d{1,2})\s*до\s*(\d{1,2})/i)
     if (timeHoursOnlyMatch) {
       const startHour = parseInt(timeHoursOnlyMatch[1])
       const endHour = parseInt(timeHoursOnlyMatch[2])
@@ -414,7 +430,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   // 4. Если всё ещё не нашли, ищем отдельные времена с двоеточием или точкой
   if (!time_start) {
     const timeRegex = /\b([01]?\d|2[0-3])[.:]([0-5]\d)\b/g
-    const timeMatches = [...text.matchAll(timeRegex)]
+    const timeMatches = [...textForTimeSearch.matchAll(timeRegex)]
     
     if (timeMatches.length >= 1) {
       time_start = `${timeMatches[0][1]}:${timeMatches[0][2]}`
