@@ -3,7 +3,6 @@ import { sendEvent, debounce, hasAnalyticsConsent, isPWAStandalone, getPWAPlatfo
 
 export function useAnalytics() {
   const hasTrackedPageView = useRef(false);
-  const hasTrackedPwaSession = useRef(false);
 
   // Track page view (only once per mount)
   const trackPageView = useCallback(() => {
@@ -89,8 +88,7 @@ export function useAnalytics() {
       }
 
       // Track PWA session start (only once per session)
-      if (!hasTrackedPwaSession.current && isPWAStandalone()) {
-        hasTrackedPwaSession.current = true;
+      if (isPWAStandalone()) {
         const pwaSessionTracked = sessionStorage.getItem("pwa_session_tracked");
         if (!pwaSessionTracked) {
           sendEvent("pwa_session_start", {
