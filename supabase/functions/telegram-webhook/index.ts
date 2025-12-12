@@ -82,13 +82,16 @@ function parseTextMessage(text: string): ParsedTraining | null {
     }
   }
 
-  // Extract time (HH:MM - HH:MM or HH:MM-HH:MM)
-  const timeMatch = text.match(/⏰\s*Время:\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/i) ||
-                   text.match(/Время:\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/i) ||
-                   text.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
+  // Extract time (HH:MM - HH:MM, HH.MM – HH.MM, etc.)
+  // Support both colons and dots as separators, and various dash types (-, –, —)
+  const timePattern = /(\d{1,2})[:\.](\d{2})\s*[-–—]\s*(\d{1,2})[:\.](\d{2})/;
+  const timeMatch = text.match(new RegExp(`⏰\\s*Время:\\s*${timePattern.source}`, 'i')) ||
+                   text.match(new RegExp(`Время:\\s*${timePattern.source}`, 'i')) ||
+                   text.match(timePattern);
   if (timeMatch) {
-    result.time_start = timeMatch[1].padStart(5, '0');
-    result.time_end = timeMatch[2].padStart(5, '0');
+    // Normalize to HH:MM format
+    result.time_start = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+    result.time_end = `${timeMatch[3].padStart(2, '0')}:${timeMatch[4]}`;
   }
 
   // Extract training type
