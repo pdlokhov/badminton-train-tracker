@@ -347,9 +347,14 @@ export function AnalyticsDashboard() {
         const pwaIosInstructions = events.filter(e => e.event_type === "pwa_ios_instructions_viewed").length;
         const pwaSessions = events.filter(e => e.event_type === "pwa_session_start").length;
         
-        // Count unique PWA users (visitors with is_pwa: true in event_data)
+        // Count unique PWA users by platform
         const pwaUsers = new Set<string>();
-        const platformCounts = { ios: 0, android: 0, desktop: 0 };
+        const pwaUsersByPlatform = {
+          ios: new Set<string>(),
+          android: new Set<string>(),
+          desktop: new Set<string>(),
+        };
+        const platformSessions = { ios: 0, android: 0, desktop: 0 };
         
         events.forEach(event => {
           const eventData = event.event_data as Record<string, unknown>;
@@ -358,11 +363,24 @@ export function AnalyticsDashboard() {
           }
           if (event.event_type === "pwa_session_start") {
             const platform = (eventData?.platform as string) || "desktop";
-            if (platform === "ios") platformCounts.ios++;
-            else if (platform === "android") platformCounts.android++;
-            else platformCounts.desktop++;
+            if (platform === "ios") {
+              platformSessions.ios++;
+              pwaUsersByPlatform.ios.add(event.visitor_id);
+            } else if (platform === "android") {
+              platformSessions.android++;
+              pwaUsersByPlatform.android.add(event.visitor_id);
+            } else {
+              platformSessions.desktop++;
+              pwaUsersByPlatform.desktop.add(event.visitor_id);
+            }
           }
         });
+
+        const platformUsers = {
+          ios: pwaUsersByPlatform.ios.size,
+          android: pwaUsersByPlatform.android.size,
+          desktop: pwaUsersByPlatform.desktop.size,
+        };
 
         const conversionRate = pwaBannerViews > 0 
           ? (pwaInstalls / pwaBannerViews) * 100 
@@ -376,7 +394,7 @@ export function AnalyticsDashboard() {
           pwaSessions: pwaSessions,
           activePwaUsers: pwaUsers.size,
           conversionRate: conversionRate,
-          platformBreakdown: platformCounts,
+          platformBreakdown: platformUsers,
         });
 
         // Calculate daily PWA data
