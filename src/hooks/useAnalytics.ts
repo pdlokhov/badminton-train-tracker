@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { sendEvent, debounce, hasAnalyticsConsent, isPWAStandalone, getPWAPlatform } from "@/lib/analytics";
+import { sendEvent, debounce, hasAnalyticsConsent } from "@/lib/analytics";
 
 export function useAnalytics() {
   const hasTrackedPageView = useRef(false);
@@ -75,7 +75,7 @@ export function useAnalytics() {
     []
   );
 
-  // Track session start and PWA session on mount
+  // Track session start on mount
   useEffect(() => {
     if (hasAnalyticsConsent()) {
       const sessionStarted = sessionStorage.getItem("session_start_tracked");
@@ -85,17 +85,6 @@ export function useAnalytics() {
           landing_page: window.location.pathname,
         });
         sessionStorage.setItem("session_start_tracked", "true");
-      }
-
-      // Track PWA session start (only once per session)
-      if (isPWAStandalone()) {
-        const pwaSessionTracked = sessionStorage.getItem("pwa_session_tracked");
-        if (!pwaSessionTracked) {
-          sendEvent("pwa_session_start", {
-            platform: getPWAPlatform(),
-          });
-          sessionStorage.setItem("pwa_session_tracked", "true");
-        }
       }
     }
   }, []);

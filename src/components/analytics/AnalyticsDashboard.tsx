@@ -14,13 +14,11 @@ import { DailyVisitorsChart } from "./DailyVisitorsChart";
 import { RetentionTable } from "./RetentionTable";
 import { UserActivityTable } from "./UserActivityTable";
 import { SignupDistributionChart } from "./SignupDistributionChart";
-import { PWAMetricsCard } from "./PWAMetricsCard";
-import { PWAInstallsChart } from "./PWAInstallsChart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
-type DateRange = "7d" | "30d" | "90d" | "all";
+type DateRange = "7d" | "30d" | "90d";
 
 interface DailyStats {
   date: string;
@@ -77,30 +75,13 @@ export function AnalyticsDashboard() {
     retentionD7: number | null;
     retentionD30: number | null;
   }>>([]);
-  const [pwaMetrics, setPwaMetrics] = useState({
-    totalInstalls: 0,
-    bannerViews: 0,
-    bannerDismisses: 0,
-    iosInstructions: 0,
-    pwaSessions: 0,
-    activePwaUsers: 0,
-    conversionRate: 0,
-    platformBreakdown: { ios: 0, android: 0, desktop: 0 },
-  });
-  const [pwaDailyData, setPwaDailyData] = useState<Array<{
-    date: string;
-    installs: number;
-    sessions: number;
-    bannerViews: number;
-  }>>([]);
   const { toast } = useToast();
 
-  const getDaysCount = (range: DateRange): number | null => {
+  const getDaysCount = (range: DateRange) => {
     switch (range) {
       case "7d": return 7;
       case "30d": return 30;
       case "90d": return 90;
-      case "all": return null;
     }
   };
 
@@ -109,18 +90,13 @@ export function AnalyticsDashboard() {
     async function fetchStats() {
       setLoading(true);
       const days = getDaysCount(dateRange);
+      const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("analytics_daily")
         .select("*")
+        .gte("date", startDate)
         .order("date", { ascending: true });
-      
-      if (days !== null) {
-        const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
-        query = query.gte("date", startDate);
-      }
-
-      const { data, error } = await query;
 
       if (!error && data) {
         setStats(data as DailyStats[]);
@@ -150,20 +126,15 @@ export function AnalyticsDashboard() {
   useEffect(() => {
     async function fetchRealtimeStats() {
       const days = getDaysCount(dateRange);
+      const startDate = subDays(new Date(), days);
+      const startOfRange = startOfDay(startDate).toISOString();
       const endOfRange = endOfDay(new Date()).toISOString();
 
-      let query = supabase
+      const { data: events } = await supabase
         .from("analytics_events")
         .select("event_type, visitor_id, event_data, created_at, session_id")
+        .gte("created_at", startOfRange)
         .lte("created_at", endOfRange);
-      
-      if (days !== null) {
-        const startDate = subDays(new Date(), days);
-        const startOfRange = startOfDay(startDate).toISOString();
-        query = query.gte("created_at", startOfRange);
-      }
-
-      const { data: events } = await query;
 
       if (events) {
         // Calculate real-time metrics from all events in range
@@ -257,9 +228,7 @@ export function AnalyticsDashboard() {
 
         // Calculate average metrics
         const totalUsers = activityData.length;
-        const daysInPeriod = days !== null 
-          ? days 
-          : Math.ceil((new Date().getTime() - new Date(events[0]?.created_at || new Date()).getTime()) / (1000 * 60 * 60 * 24)) || 30;
+        const daysInPeriod = Math.ceil((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
         const weeksInPeriod = daysInPeriod / 7;
 
         const totalSignups = activityData.reduce((sum, u) => sum + u.total_signups, 0);
@@ -352,87 +321,6 @@ export function AnalyticsDashboard() {
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         setDailyVisitorsData(dailyVisitors);
-
-        // Calculate PWA metrics
-        const pwaInstalls = events.filter(e => e.event_type === "pwa_install").length;
-        const pwaBannerViews = events.filter(e => e.event_type === "pwa_banner_view").length;
-        const pwaBannerDismisses = events.filter(e => e.event_type === "pwa_banner_dismiss").length;
-        const pwaIosInstructions = events.filter(e => e.event_type === "pwa_ios_instructions_viewed").length;
-        const pwaSessions = events.filter(e => e.event_type === "pwa_session_start").length;
-        
-        // Count unique PWA users by platform
-        const pwaUsers = new Set<string>();
-        const pwaUsersByPlatform = {
-          ios: new Set<string>(),
-          android: new Set<string>(),
-          desktop: new Set<string>(),
-        };
-        const platformSessions = { ios: 0, android: 0, desktop: 0 };
-        
-        events.forEach(event => {
-          const eventData = event.event_data as Record<string, unknown>;
-          if (eventData?.is_pwa === true) {
-            pwaUsers.add(event.visitor_id);
-          }
-          if (event.event_type === "pwa_session_start") {
-            const platform = (eventData?.platform as string) || "desktop";
-            if (platform === "ios") {
-              platformSessions.ios++;
-              pwaUsersByPlatform.ios.add(event.visitor_id);
-            } else if (platform === "android") {
-              platformSessions.android++;
-              pwaUsersByPlatform.android.add(event.visitor_id);
-            } else {
-              platformSessions.desktop++;
-              pwaUsersByPlatform.desktop.add(event.visitor_id);
-            }
-          }
-        });
-
-        const platformUsers = {
-          ios: pwaUsersByPlatform.ios.size,
-          android: pwaUsersByPlatform.android.size,
-          desktop: pwaUsersByPlatform.desktop.size,
-        };
-
-        const conversionRate = pwaBannerViews > 0 
-          ? (pwaInstalls / pwaBannerViews) * 100 
-          : 0;
-
-        setPwaMetrics({
-          totalInstalls: pwaInstalls,
-          bannerViews: pwaBannerViews,
-          bannerDismisses: pwaBannerDismisses,
-          iosInstructions: pwaIosInstructions,
-          pwaSessions: pwaSessions,
-          activePwaUsers: pwaUsers.size,
-          conversionRate: conversionRate,
-          platformBreakdown: platformUsers,
-        });
-
-        // Calculate daily PWA data
-        const pwaDailyMap = new Map<string, { installs: number; sessions: number; bannerViews: number }>();
-        
-        events.forEach(event => {
-          const eventDate = format(new Date(event.created_at), "yyyy-MM-dd");
-          if (!pwaDailyMap.has(eventDate)) {
-            pwaDailyMap.set(eventDate, { installs: 0, sessions: 0, bannerViews: 0 });
-          }
-          const dayData = pwaDailyMap.get(eventDate)!;
-          
-          if (event.event_type === "pwa_install") dayData.installs++;
-          if (event.event_type === "pwa_session_start") dayData.sessions++;
-          if (event.event_type === "pwa_banner_view") dayData.bannerViews++;
-        });
-
-        const pwaDailyArray = Array.from(pwaDailyMap.entries())
-          .map(([date, data]) => ({
-            date,
-            ...data,
-          }))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        setPwaDailyData(pwaDailyArray);
       }
     }
 
@@ -458,17 +346,12 @@ export function AnalyticsDashboard() {
         });
         // Refresh daily stats
         const days = getDaysCount(dateRange);
-        let refreshQuery = supabase
+        const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
+        const { data: statsData } = await supabase
           .from("analytics_daily")
           .select("*")
+          .gte("date", startDate)
           .order("date", { ascending: true });
-        
-        if (days !== null) {
-          const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
-          refreshQuery = refreshQuery.gte("date", startDate);
-        }
-        
-        const { data: statsData } = await refreshQuery;
         
         if (statsData) {
           setStats(statsData as DailyStats[]);
@@ -565,14 +448,14 @@ export function AnalyticsDashboard() {
     <div className="space-y-6">
       {/* Date range selector and aggregation button */}
       <div className="flex gap-2 flex-wrap items-center">
-        {(["7d", "30d", "90d", "all"] as DateRange[]).map((range) => (
+        {(["7d", "30d", "90d"] as DateRange[]).map((range) => (
           <Button
             key={range}
             variant={dateRange === range ? "default" : "outline"}
             size="sm"
             onClick={() => setDateRange(range)}
           >
-            {range === "7d" ? "7 дней" : range === "30d" ? "30 дней" : range === "90d" ? "90 дней" : "Всё время"}
+            {range === "7d" ? "7 дней" : range === "30d" ? "30 дней" : "90 дней"}
           </Button>
         ))}
         <div className="flex-1" />
@@ -681,12 +564,6 @@ export function AnalyticsDashboard() {
         <div className="lg:col-span-1">
           <UserActivityTable data={userActivity} />
         </div>
-      </div>
-
-      {/* PWA Metrics */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <PWAMetricsCard data={pwaMetrics} />
-        <PWAInstallsChart data={pwaDailyData} />
       </div>
     </div>
   );

@@ -54,23 +54,6 @@ export function getDeviceType(): string {
   return "desktop";
 }
 
-// Check if running as PWA (standalone mode)
-export function isPWAStandalone(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true ||
-    document.referrer.includes("android-app://")
-  );
-}
-
-// Get PWA platform
-export function getPWAPlatform(): string {
-  const ua = navigator.userAgent;
-  if (/iphone|ipad|ipod/i.test(ua)) return "ios";
-  if (/android/i.test(ua)) return "android";
-  return "desktop";
-}
-
 // Check analytics consent
 export function hasAnalyticsConsent(): boolean {
   const consent = localStorage.getItem(ANALYTICS_CONSENT_KEY);
@@ -111,7 +94,6 @@ export async function sendEvent(
     const visitorId = getOrCreateVisitorId();
     const sessionId = getOrCreateSessionId();
     const deviceType = getDeviceType();
-    const isPwa = isPWAStandalone();
 
     await fetch(`${SUPABASE_URL}/functions/v1/track-event`, {
       method: 'POST',
@@ -122,10 +104,7 @@ export async function sendEvent(
         visitor_id: visitorId,
         session_id: sessionId,
         event_type: eventType,
-        event_data: {
-          ...eventData,
-          is_pwa: isPwa,
-        },
+        event_data: eventData,
         page_path: window.location.pathname,
         referrer: document.referrer || null,
         user_agent: navigator.userAgent,
