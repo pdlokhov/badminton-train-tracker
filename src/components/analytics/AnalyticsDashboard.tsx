@@ -14,6 +14,7 @@ import { DailyVisitorsChart } from "./DailyVisitorsChart";
 import { RetentionTable } from "./RetentionTable";
 import { UserActivityTable } from "./UserActivityTable";
 import { SignupDistributionChart } from "./SignupDistributionChart";
+import { PWAMetricsCard } from "./PWAMetricsCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +76,16 @@ export function AnalyticsDashboard() {
     retentionD7: number | null;
     retentionD30: number | null;
   }>>([]);
+  const [pwaMetrics, setPwaMetrics] = useState({
+    totalInstalls: 0,
+    bannerViews: 0,
+    bannerDismisses: 0,
+    iosInstructions: 0,
+    pwaSessions: 0,
+    activePwaUsers: 0,
+    conversionRate: 0,
+    platformBreakdown: { ios: 0, android: 0, desktop: 0 },
+  });
   const { toast } = useToast();
 
   const getDaysCount = (range: DateRange) => {
@@ -321,6 +332,45 @@ export function AnalyticsDashboard() {
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         setDailyVisitorsData(dailyVisitors);
+
+        // Calculate PWA metrics
+        const pwaInstalls = events.filter(e => e.event_type === "pwa_install").length;
+        const pwaBannerViews = events.filter(e => e.event_type === "pwa_banner_view").length;
+        const pwaBannerDismisses = events.filter(e => e.event_type === "pwa_banner_dismiss").length;
+        const pwaIosInstructions = events.filter(e => e.event_type === "pwa_ios_instructions_viewed").length;
+        const pwaSessions = events.filter(e => e.event_type === "pwa_session_start").length;
+        
+        // Count unique PWA users (visitors with is_pwa: true in event_data)
+        const pwaUsers = new Set<string>();
+        const platformCounts = { ios: 0, android: 0, desktop: 0 };
+        
+        events.forEach(event => {
+          const eventData = event.event_data as Record<string, unknown>;
+          if (eventData?.is_pwa === true) {
+            pwaUsers.add(event.visitor_id);
+          }
+          if (event.event_type === "pwa_session_start") {
+            const platform = (eventData?.platform as string) || "desktop";
+            if (platform === "ios") platformCounts.ios++;
+            else if (platform === "android") platformCounts.android++;
+            else platformCounts.desktop++;
+          }
+        });
+
+        const conversionRate = pwaBannerViews > 0 
+          ? (pwaInstalls / pwaBannerViews) * 100 
+          : 0;
+
+        setPwaMetrics({
+          totalInstalls: pwaInstalls,
+          bannerViews: pwaBannerViews,
+          bannerDismisses: pwaBannerDismisses,
+          iosInstructions: pwaIosInstructions,
+          pwaSessions: pwaSessions,
+          activePwaUsers: pwaUsers.size,
+          conversionRate: conversionRate,
+          platformBreakdown: platformCounts,
+        });
       }
     }
 
@@ -565,6 +615,9 @@ export function AnalyticsDashboard() {
           <UserActivityTable data={userActivity} />
         </div>
       </div>
+
+      {/* PWA Metrics */}
+      <PWAMetricsCard data={pwaMetrics} />
     </div>
   );
 }
