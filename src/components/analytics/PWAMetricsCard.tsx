@@ -70,9 +70,9 @@ export function PWAMetricsCard({ data }: PWAMetricsCardProps) {
           </div>
         </div>
 
-        {/* Platform breakdown */}
+        {/* Platform breakdown - unique users */}
         <div className="mt-4 pt-4 border-t">
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">По платформам (PWA сессии)</h4>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">Уникальных PWA пользователей по платформам</h4>
           <div className="flex gap-4">
             <div className="flex items-center gap-2">
               <Apple className="h-4 w-4" />
@@ -82,10 +82,12 @@ export function PWAMetricsCard({ data }: PWAMetricsCardProps) {
               <Smartphone className="h-4 w-4" />
               <span className="text-sm">Android: <strong>{data.platformBreakdown.android}</strong></span>
             </div>
-            <div className="flex items-center gap-2">
-              <MonitorSmartphone className="h-4 w-4" />
-              <span className="text-sm">Desktop: <strong>{data.platformBreakdown.desktop}</strong></span>
-            </div>
+            {data.platformBreakdown.desktop > 0 && (
+              <div className="flex items-center gap-2">
+                <MonitorSmartphone className="h-4 w-4" />
+                <span className="text-sm">Desktop: <strong>{data.platformBreakdown.desktop}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 
