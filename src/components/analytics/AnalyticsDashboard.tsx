@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
-type DateRange = "7d" | "30d" | "90d";
+type DateRange = "7d" | "30d" | "90d" | "all";
 
 interface DailyStats {
   date: string;
@@ -95,11 +95,12 @@ export function AnalyticsDashboard() {
   }>>([]);
   const { toast } = useToast();
 
-  const getDaysCount = (range: DateRange) => {
+  const getDaysCount = (range: DateRange): number | null => {
     switch (range) {
       case "7d": return 7;
       case "30d": return 30;
       case "90d": return 90;
+      case "all": return null;
     }
   };
 
@@ -108,13 +109,18 @@ export function AnalyticsDashboard() {
     async function fetchStats() {
       setLoading(true);
       const days = getDaysCount(dateRange);
-      const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("analytics_daily")
         .select("*")
-        .gte("date", startDate)
         .order("date", { ascending: true });
+      
+      if (days !== null) {
+        const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
+        query = query.gte("date", startDate);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data) {
         setStats(data as DailyStats[]);
@@ -144,15 +150,20 @@ export function AnalyticsDashboard() {
   useEffect(() => {
     async function fetchRealtimeStats() {
       const days = getDaysCount(dateRange);
-      const startDate = subDays(new Date(), days);
-      const startOfRange = startOfDay(startDate).toISOString();
       const endOfRange = endOfDay(new Date()).toISOString();
 
-      const { data: events } = await supabase
+      let query = supabase
         .from("analytics_events")
         .select("event_type, visitor_id, event_data, created_at, session_id")
-        .gte("created_at", startOfRange)
         .lte("created_at", endOfRange);
+      
+      if (days !== null) {
+        const startDate = subDays(new Date(), days);
+        const startOfRange = startOfDay(startDate).toISOString();
+        query = query.gte("created_at", startOfRange);
+      }
+
+      const { data: events } = await query;
 
       if (events) {
         // Calculate real-time metrics from all events in range
@@ -246,7 +257,9 @@ export function AnalyticsDashboard() {
 
         // Calculate average metrics
         const totalUsers = activityData.length;
-        const daysInPeriod = Math.ceil((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysInPeriod = days !== null 
+          ? days 
+          : Math.ceil((new Date().getTime() - new Date(events[0]?.created_at || new Date()).getTime()) / (1000 * 60 * 60 * 24)) || 30;
         const weeksInPeriod = daysInPeriod / 7;
 
         const totalSignups = activityData.reduce((sum, u) => sum + u.total_signups, 0);
@@ -445,12 +458,17 @@ export function AnalyticsDashboard() {
         });
         // Refresh daily stats
         const days = getDaysCount(dateRange);
-        const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
-        const { data: statsData } = await supabase
+        let refreshQuery = supabase
           .from("analytics_daily")
           .select("*")
-          .gte("date", startDate)
           .order("date", { ascending: true });
+        
+        if (days !== null) {
+          const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
+          refreshQuery = refreshQuery.gte("date", startDate);
+        }
+        
+        const { data: statsData } = await refreshQuery;
         
         if (statsData) {
           setStats(statsData as DailyStats[]);
@@ -547,14 +565,14 @@ export function AnalyticsDashboard() {
     <div className="space-y-6">
       {/* Date range selector and aggregation button */}
       <div className="flex gap-2 flex-wrap items-center">
-        {(["7d", "30d", "90d"] as DateRange[]).map((range) => (
+        {(["7d", "30d", "90d", "all"] as DateRange[]).map((range) => (
           <Button
             key={range}
             variant={dateRange === range ? "default" : "outline"}
             size="sm"
             onClick={() => setDateRange(range)}
           >
-            {range === "7d" ? "7 дней" : range === "30d" ? "30 дней" : "90 дней"}
+            {range === "7d" ? "7 дней" : range === "30d" ? "30 дней" : range === "90d" ? "90 дней" : "Всё время"}
           </Button>
         ))}
         <div className="flex-1" />
