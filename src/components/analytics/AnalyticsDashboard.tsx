@@ -15,6 +15,7 @@ import { RetentionTable } from "./RetentionTable";
 import { UserActivityTable } from "./UserActivityTable";
 import { SignupDistributionChart } from "./SignupDistributionChart";
 import { PWAMetricsCard } from "./PWAMetricsCard";
+import { PWAInstallsChart } from "./PWAInstallsChart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -86,6 +87,12 @@ export function AnalyticsDashboard() {
     conversionRate: 0,
     platformBreakdown: { ios: 0, android: 0, desktop: 0 },
   });
+  const [pwaDailyData, setPwaDailyData] = useState<Array<{
+    date: string;
+    installs: number;
+    sessions: number;
+    bannerViews: number;
+  }>>([]);
   const { toast } = useToast();
 
   const getDaysCount = (range: DateRange) => {
@@ -371,6 +378,30 @@ export function AnalyticsDashboard() {
           conversionRate: conversionRate,
           platformBreakdown: platformCounts,
         });
+
+        // Calculate daily PWA data
+        const pwaDailyMap = new Map<string, { installs: number; sessions: number; bannerViews: number }>();
+        
+        events.forEach(event => {
+          const eventDate = format(new Date(event.created_at), "yyyy-MM-dd");
+          if (!pwaDailyMap.has(eventDate)) {
+            pwaDailyMap.set(eventDate, { installs: 0, sessions: 0, bannerViews: 0 });
+          }
+          const dayData = pwaDailyMap.get(eventDate)!;
+          
+          if (event.event_type === "pwa_install") dayData.installs++;
+          if (event.event_type === "pwa_session_start") dayData.sessions++;
+          if (event.event_type === "pwa_banner_view") dayData.bannerViews++;
+        });
+
+        const pwaDailyArray = Array.from(pwaDailyMap.entries())
+          .map(([date, data]) => ({
+            date,
+            ...data,
+          }))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        setPwaDailyData(pwaDailyArray);
       }
     }
 
@@ -617,7 +648,10 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* PWA Metrics */}
-      <PWAMetricsCard data={pwaMetrics} />
+      <div className="grid md:grid-cols-2 gap-4">
+        <PWAMetricsCard data={pwaMetrics} />
+        <PWAInstallsChart data={pwaDailyData} />
+      </div>
     </div>
   );
 }
