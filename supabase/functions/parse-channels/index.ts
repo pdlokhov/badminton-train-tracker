@@ -1099,28 +1099,17 @@ Deno.serve(async (req) => {
     const { force = false } = await req.json().catch(() => ({}))
     console.log(`Force mode: ${force ? 'ON' : 'OFF'}`)
 
-    // Check for cron secret (for automated scheduled parsing)
-    const cronSecret = Deno.env.get('CRON_SECRET')
-    const providedCronSecret = req.headers.get('X-Cron-Secret')
-    
-    console.log(`CRON_SECRET env exists: ${!!cronSecret}, provided header exists: ${!!providedCronSecret}`)
-    console.log(`Secrets match: ${cronSecret && providedCronSecret && providedCronSecret === cronSecret}`)
-    
+    // Log request source for monitoring
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown'
+    const userAgent = req.headers.get('user-agent') || 'unknown'
+    console.log(`Request from IP: ${clientIP}, UA: ${userAgent}`)
+
+    // Check authorization: either admin token OR unauthenticated cron call
+    const authHeader = req.headers.get('Authorization')
     let isAuthorized = false
     
-    if (cronSecret && providedCronSecret && providedCronSecret === cronSecret) {
-      console.log('Cron job initiated parsing (authenticated via CRON_SECRET)')
-      isAuthorized = true
-    } else {
-      // Verify admin role server-side for manual requests
-      const authHeader = req.headers.get('Authorization')
-      if (!authHeader) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Требуется авторизация' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
+    if (authHeader) {
+      // Manual request with token - verify admin role
       const token = authHeader.replace('Bearer ', '')
       const { data: { user }, error: userError } = await supabase.auth.getUser(token)
       
@@ -1146,6 +1135,10 @@ Deno.serve(async (req) => {
       }
 
       console.log(`Admin user ${user.id} initiated parsing`)
+      isAuthorized = true
+    } else {
+      // Unauthenticated request - allow for cron jobs (public endpoint)
+      console.log('Cron job initiated parsing (public endpoint)')
       isAuthorized = true
     }
     
