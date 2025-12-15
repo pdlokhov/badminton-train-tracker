@@ -432,6 +432,21 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
+  // 3.5. Ищем формат "X до Y" без "с" (например "21 до 23", "10 до 12")
+  if (!time_start) {
+    const timeHoursOnlyNoSMatch = textForTimeSearch.match(/\b(\d{1,2})\s*до\s*(\d{1,2})\b/i)
+    if (timeHoursOnlyNoSMatch) {
+      const startHour = parseInt(timeHoursOnlyNoSMatch[1])
+      const endHour = parseInt(timeHoursOnlyNoSMatch[2])
+      // Проверяем что это валидные часы (0-23) и что это не даты
+      if (startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 23) {
+        time_start = startHour.toString().padStart(2, '0') + ':00'
+        time_end = endHour.toString().padStart(2, '0') + ':00'
+        console.log(`Message ${messageId}: time hours only (no 's') = ${time_start} - ${time_end}`)
+      }
+    }
+  }
+  
   // 4. Если всё ещё не нашли, ищем отдельные времена с двоеточием или точкой
   if (!time_start) {
     const timeRegex = /\b([01]?\d|2[0-3])[.:]([0-5]\d)\b/g
