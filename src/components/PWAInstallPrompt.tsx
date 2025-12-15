@@ -24,42 +24,71 @@ export function PWAInstallPrompt() {
   };
 
   useEffect(() => {
+    // Debug logging
+    console.log('[PWA Debug] Component mounted');
+    console.log('[PWA Debug] User Agent:', navigator.userAgent);
+    console.log('[PWA Debug] isMobile:', isMobile);
+    console.log('[PWA Debug] Platform:', getPlatform());
+    
     // Check if already dismissed
     const dismissed = localStorage.getItem("pwa-install-dismissed");
     const dismissedTime = localStorage.getItem("pwa-install-dismissed-time");
+    console.log('[PWA Debug] Dismissed status:', { dismissed, dismissedTime });
     
     // Show again after 7 days
     if (dismissed && dismissedTime) {
       const daysSinceDismissed = (Date.now() - parseInt(dismissedTime)) / (1000 * 60 * 60 * 24);
-      if (daysSinceDismissed < 7) return;
+      console.log('[PWA Debug] Days since dismissed:', daysSinceDismissed);
+      if (daysSinceDismissed < 7) {
+        console.log('[PWA Debug] Skipping - dismissed less than 7 days ago');
+        return;
+      }
     }
 
     // Check if already installed (standalone mode)
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches 
       || (window.navigator as any).standalone === true;
+    console.log('[PWA Debug] Standalone mode:', isStandalone);
     
-    if (isStandalone) return;
+    if (isStandalone) {
+      console.log('[PWA Debug] Skipping - already installed (standalone)');
+      return;
+    }
 
     // Detect iOS
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(iOS);
+    console.log('[PWA Debug] iOS detected:', iOS);
 
     // For Android/Chrome - listen for beforeinstallprompt
     const handleBeforeInstall = (e: Event) => {
+      console.log('[PWA Debug] 🎉 beforeinstallprompt event fired!');
+      console.log('[PWA Debug] Event type:', e.type);
+      console.log('[PWA Debug] Event:', e);
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+      console.log('[PWA Debug] Deferred prompt saved, will show banner in 3s');
       // Show banner with delay
-      setTimeout(() => setIsVisible(true), 3000);
+      setTimeout(() => {
+        console.log('[PWA Debug] Showing banner now');
+        setIsVisible(true);
+      }, 3000);
     };
 
+    console.log('[PWA Debug] Adding beforeinstallprompt listener');
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+
+    // Also log if event was already fired before we added listener
+    console.log('[PWA Debug] Checking if beforeinstallprompt is supported...');
 
     // For iOS - show instructions after delay
     if (iOS && isMobile) {
+      console.log('[PWA Debug] iOS mobile - will show instructions in 3s');
       setTimeout(() => setIsVisible(true), 3000);
     }
 
     return () => {
+      console.log('[PWA Debug] Removing beforeinstallprompt listener');
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
     };
   }, [isMobile]);
@@ -73,17 +102,34 @@ export function PWAInstallPrompt() {
   }, [isVisible, trackEvent]);
 
   const handleInstall = async () => {
+    console.log('[PWA Debug] Install button clicked');
+    console.log('[PWA Debug] Deferred prompt available:', !!deferredPrompt);
+    
     if (deferredPrompt) {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === "accepted") {
-        trackEvent("pwa_install", { platform: "android" });
-        setIsVisible(false);
-      } else {
-        trackEvent("pwa_install_cancelled", { platform: "android" });
+      try {
+        console.log('[PWA Debug] Calling prompt()...');
+        await deferredPrompt.prompt();
+        console.log('[PWA Debug] prompt() called, waiting for userChoice...');
+        
+        const choiceResult = await deferredPrompt.userChoice;
+        console.log('[PWA Debug] userChoice result:', choiceResult);
+        console.log('[PWA Debug] Outcome:', choiceResult.outcome);
+        
+        if (choiceResult.outcome === "accepted") {
+          console.log('[PWA Debug] ✅ User ACCEPTED installation');
+          trackEvent("pwa_install", { platform: "android" });
+          setIsVisible(false);
+        } else {
+          console.log('[PWA Debug] ❌ User DISMISSED installation');
+          trackEvent("pwa_install_cancelled", { platform: "android" });
+        }
+        setDeferredPrompt(null);
+      } catch (error) {
+        console.error('[PWA Debug] Error during install:', error);
+        trackEvent("pwa_install_error", { platform: "android", error: String(error) });
       }
-      setDeferredPrompt(null);
+    } else {
+      console.log('[PWA Debug] No deferred prompt available!');
     }
   };
 
