@@ -388,6 +388,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      invoke_parse_channels: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"
