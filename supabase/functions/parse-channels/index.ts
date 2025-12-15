@@ -432,7 +432,22 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
-  // 3.5. Ищем формат "X до Y" без "с" (например "21 до 23", "10 до 12")
+  // 3.5. Ищем формат "с X-Y" (например "с 21-23", "с 10-12") - без слова "до"
+  if (!time_start) {
+    const timeHoursWithSMatch = textForTimeSearch.match(/с\s*(\d{1,2})\s*[-–—]\s*(\d{1,2})/i)
+    if (timeHoursWithSMatch) {
+      const startHour = parseInt(timeHoursWithSMatch[1])
+      const endHour = parseInt(timeHoursWithSMatch[2])
+      // Проверяем что это валидные часы (0-23)
+      if (startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 23) {
+        time_start = startHour.toString().padStart(2, '0') + ':00'
+        time_end = endHour.toString().padStart(2, '0') + ':00'
+        console.log(`Message ${messageId}: time hours 's X-Y' = ${time_start} - ${time_end}`)
+      }
+    }
+  }
+  
+  // 3.6. Ищем формат "X до Y" без "с" (например "21 до 23", "10 до 12")
   if (!time_start) {
     const timeHoursOnlyNoSMatch = textForTimeSearch.match(/\b(\d{1,2})\s*до\s*(\d{1,2})\b/i)
     if (timeHoursOnlyNoSMatch) {
