@@ -1,7 +1,7 @@
 project_id = "xqquqrsqtnjnzvyubhzc"
 
 [functions.parse-channels]
-verify_jwt = true
+verify_jwt = false
 
 [functions.aggregate-analytics]
 verify_jwt = false

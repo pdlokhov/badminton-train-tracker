@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 }
 
 interface Channel {
@@ -1072,6 +1072,9 @@ Deno.serve(async (req) => {
     // Check for cron secret (for automated scheduled parsing)
     const cronSecret = Deno.env.get('CRON_SECRET')
     const providedCronSecret = req.headers.get('X-Cron-Secret')
+    
+    console.log(`CRON_SECRET env exists: ${!!cronSecret}, provided header exists: ${!!providedCronSecret}`)
+    console.log(`Secrets match: ${cronSecret && providedCronSecret && providedCronSecret === cronSecret}`)
     
     let isAuthorized = false
     
