@@ -706,7 +706,7 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
   return result
 }
 
-async function fetchTelegramChannel(username: string, topicId?: number | null): Promise<{ text: string, messageId: string }[]> {
+async function fetchTelegramChannel(username: string, topicId?: number | null): Promise<{ text: string, messageId: string, postDate: Date | null }[]> {
   const url = `https://t.me/s/${username}`
   console.log(`Fetching channel: ${url}${topicId ? ` (topic: ${topicId})` : ''}`)
   
@@ -722,32 +722,44 @@ async function fetchTelegramChannel(username: string, topicId?: number | null): 
   }
   
   const html = await response.text()
-  const messages: { text: string, messageId: string }[] = []
+  const messages: { text: string, messageId: string, postDate: Date | null }[] = []
   
-  // Parse messages from HTML
+  // Parse message blocks to extract date and text
   // Формат data-post для супергрупп с топиками: "username/topicId/messageId"
   // Формат для обычных каналов: "username/messageId"
-  const messageRegex = topicId 
-    ? new RegExp(`data-post="${username}/${topicId}/(\\d+)"[^>]*>[\\s\\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'g')
-    : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
-  let match
+  const messageBlockRegex = topicId
+    ? new RegExp(`data-post="${username}/${topicId}/(\\d+)"[^>]*>[\\s\\S]*?(?=data-post="|$)`, 'g')
+    : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?(?=data-post="|$)/g
   
-  while ((match = messageRegex.exec(html)) !== null) {
-    const messageId = match[1]
-    let text = match[2]
+  let blockMatch
+  while ((blockMatch = messageBlockRegex.exec(html)) !== null) {
+    const messageId = blockMatch[1]
+    const block = blockMatch[0]
     
-    // Clean HTML tags
-    text = text.replace(/<br\s*\/?>/gi, '\n')
-    text = text.replace(/<[^>]+>/g, '')
-    text = text.replace(/&nbsp;/g, ' ')
-    text = text.replace(/&amp;/g, '&')
-    text = text.replace(/&lt;/g, '<')
-    text = text.replace(/&gt;/g, '>')
-    text = text.replace(/&quot;/g, '"')
-    text = text.trim()
+    // Извлекаем дату публикации
+    const dateMatch = block.match(/datetime="([^"]+)"/)
+    let postDate: Date | null = null
+    if (dateMatch) {
+      postDate = new Date(dateMatch[1])
+    }
     
-    if (text.length > 10) {
-      messages.push({ text, messageId: topicId ? `${topicId}_${messageId}` : messageId })
+    // Извлекаем текст сообщения
+    const textMatch = block.match(/<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/)
+    if (textMatch) {
+      let text = textMatch[1]
+      // Clean HTML tags
+      text = text.replace(/<br\s*\/?>/gi, '\n')
+      text = text.replace(/<[^>]+>/g, '')
+      text = text.replace(/&nbsp;/g, ' ')
+      text = text.replace(/&amp;/g, '&')
+      text = text.replace(/&lt;/g, '<')
+      text = text.replace(/&gt;/g, '>')
+      text = text.replace(/&quot;/g, '"')
+      text = text.trim()
+      
+      if (text.length > 10) {
+        messages.push({ text, messageId: topicId ? `${topicId}_${messageId}` : messageId, postDate })
+      }
     }
   }
   
@@ -1021,7 +1033,7 @@ function hashMessage(text: string): string {
 }
 
 // Анализ текстового расписания через Lovable AI
-async function analyzeScheduleText(text: string, currentYear: number): Promise<AITextScheduleResult | null> {
+async function analyzeScheduleText(text: string, currentYear: number, currentDate: string, minDate: string): Promise<AITextScheduleResult | null> {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
   if (!LOVABLE_API_KEY) {
     console.error('LOVABLE_API_KEY not configured')
@@ -1042,14 +1054,19 @@ async function analyzeScheduleText(text: string, currentYear: number): Promise<A
         messages: [{
           role: 'user',
           content: `Проанализируй текст расписания тренировок по бадминтону.
-Текущий год: ${currentYear}.
+
+ТЕКУЩАЯ ДАТА: ${currentDate}
+ГОД ПО УМОЛЧАНИЮ: ${currentYear}
+МИНИМАЛЬНАЯ ДАТА: ${minDate}
 
 ТЕКСТ ДЛЯ АНАЛИЗА:
 ${text}
 
 ВАЖНЫЕ ПРАВИЛА:
-1. Извлеки ВСЕ тренировки, турниры и события из текста
-2. Для каждой записи определи:
+1. Извлеки ВСЕ тренировки, турниры и события с датой от ${minDate} и позже
+2. Если в тексте указан только день и месяц (например "29.12"), используй год ${currentYear}
+3. Если дата старше ${minDate} - пропускай её полностью
+4. Для каждой записи определи:
    - date: дату в формате YYYY-MM-DD (преобразуй день недели и дату в скобках типа "Понедельник (29.12)" в полную дату)
    - time_start: время начала в формате HH:MM
    - time_end: время окончания в формате HH:MM (если указано)
@@ -1059,10 +1076,9 @@ ${text}
    - location: название локации (обрати внимание на заголовки с 🎯 или адреса)
    - signup_url: ссылку для записи (VK или Telegram)
    - description: дополнительное описание
-3. Если несколько тренировок в одно время - создай ОТДЕЛЬНЫЕ записи для каждой
-4. Если несколько локаций в тексте - правильно соотнеси тренировки с локациями
-5. Игнорируй общие объявления без конкретной даты/времени
-6. Если месяц декабрь, а дата в следующем году (январь+) - используй следующий год`
+5. Если несколько тренировок в одно время - создай ОТДЕЛЬНЫЕ записи для каждой
+6. Если несколько локаций в тексте - правильно соотнеси тренировки с локациями
+7. Игнорируй общие объявления без конкретной даты/времени`
         }],
         tools: [{
           type: 'function',
@@ -1460,7 +1476,7 @@ Deno.serve(async (req) => {
         // ===== РЕЖИМ AI-ПАРСИНГА ТЕКСТА =====
         console.log(`Using AI for text parsing`)
         
-        // Получаем ВСЕ сообщения (без фильтрации по дате DD.MM, т.к. AI сам разберётся)
+        // Получаем сообщения с датой публикации
         const url = `https://t.me/s/${channel.username}`
         const response = await fetch(url, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
@@ -1472,31 +1488,60 @@ Deno.serve(async (req) => {
         }
         
         const html = await response.text()
-        const messageRegex = channel.topic_id 
-          ? new RegExp(`data-post="${channel.username}/${channel.topic_id}/(\\d+)"[^>]*>[\\s\\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'g')
-          : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
         
-        const allMessages: { text: string, messageId: string }[] = []
+        // Парсим блоки сообщений с извлечением даты публикации
+        const messageBlockRegex = channel.topic_id
+          ? new RegExp(`data-post="${channel.username}/${channel.topic_id}/(\\d+)"[^>]*>[\\s\\S]*?(?=data-post="|$)`, 'g')
+          : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?(?=data-post="|$)/g
+        
+        const allMessages: { text: string, messageId: string, postDate: Date | null }[] = []
         let match
-        while ((match = messageRegex.exec(html)) !== null) {
+        while ((match = messageBlockRegex.exec(html)) !== null) {
           const messageId = match[1]
-          let text = match[2]
-          text = text.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
+          const block = match[0]
           
-          // Фильтруем только большие сообщения (вероятные расписания)
-          if (text.length > 200) {
-            allMessages.push({ text, messageId: channel.topic_id ? `${channel.topic_id}_${messageId}` : messageId })
+          // Извлекаем дату публикации
+          const dateMatch = block.match(/datetime="([^"]+)"/)
+          let postDate: Date | null = null
+          if (dateMatch) {
+            postDate = new Date(dateMatch[1])
+          }
+          
+          // Извлекаем текст сообщения
+          const textMatch = block.match(/<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/)
+          if (textMatch) {
+            let text = textMatch[1]
+            text = text.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
+            
+            // Фильтруем только большие сообщения (вероятные расписания)
+            if (text.length > 200) {
+              allMessages.push({ text, messageId: channel.topic_id ? `${channel.topic_id}_${messageId}` : messageId, postDate })
+            }
           }
         }
         
-        console.log(`Found ${allMessages.length} potential schedule messages for AI parsing`)
-        totalParsed += allMessages.length
+        console.log(`Found ${allMessages.length} potential schedule messages`)
         
-        const currentYear = new Date().getFullYear()
-        const trainingsToUpsert = []
+        // Фильтруем старые сообщения - не отправляем в AI для экономии
+        const now = new Date()
+        const oneMonthAgo = new Date(now)
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
         
-        for (const msg of allMessages) {
+        const recentMessages = allMessages.filter(msg => {
+          if (!msg.postDate) return true // Если нет даты публикации - берём
+          return msg.postDate >= oneMonthAgo
+        })
+        
+        console.log(`Filtered to ${recentMessages.length} recent messages (from last month) for AI parsing`)
+        totalParsed += recentMessages.length
+        
+        const currentYear = now.getFullYear()
+        const currentDateStr = now.toISOString().split('T')[0]
+        const minDateStr = oneMonthAgo.toISOString().split('T')[0]
+        const trainingsToUpsert: any[] = []
+        
+        for (const msg of recentMessages) {
           // Проверяем кэш обработанных сообщений
           const msgHash = hashMessage(msg.text)
           
@@ -1516,8 +1561,8 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Вызываем AI для парсинга
-          const aiResult = await analyzeScheduleText(msg.text, currentYear)
+          // Вызываем AI для парсинга с текущей датой и минимальной датой
+          const aiResult = await analyzeScheduleText(msg.text, currentYear, currentDateStr, minDateStr)
           
           if (!aiResult || !aiResult.trainings || aiResult.trainings.length === 0) {
             console.log(`No trainings found in message ${msg.messageId} via AI`)
@@ -1535,6 +1580,13 @@ Deno.serve(async (req) => {
           let trainingsFromMessage = 0
           
           for (const training of aiResult.trainings) {
+            // Фильтруем тренировки старше 1 месяца (дополнительная защита)
+            const trainingDate = new Date(training.date)
+            if (trainingDate < oneMonthAgo) {
+              console.log(`Skipping old training from AI: ${training.date}`)
+              continue
+            }
+            
             // Находим локацию из справочника
             const locationResult = training.location ? findLocation(training.location, knownLocations) : null
             
@@ -1551,9 +1603,14 @@ Deno.serve(async (req) => {
               }
             }
             
+            // Генерируем уникальный message_id с локацией
+            const locationKey = (training.location || 'unknown')
+              .replace(/[^a-zA-Z0-9а-яА-Я]/g, '')
+              .substring(0, 20)
+            
             const trainingRecord = {
               channel_id: channel.id,
-              message_id: `ai_${msg.messageId}_${training.date}_${training.time_start}`,
+              message_id: `ai_${msg.messageId}_${training.date}_${training.time_start}_${locationKey}`,
               title: training.title || `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
               date: training.date,
               time_start: training.time_start,
@@ -1582,11 +1639,23 @@ Deno.serve(async (req) => {
           }, { onConflict: 'channel_id,message_id' })
         }
         
+        // Дедупликация по message_id перед batch upsert
+        const uniqueMap = new Map<string, typeof trainingsToUpsert[0]>()
+        for (const t of trainingsToUpsert) {
+          if (!uniqueMap.has(t.message_id)) {
+            uniqueMap.set(t.message_id, t)
+          } else {
+            console.log(`Duplicate message_id skipped: ${t.message_id}`)
+          }
+        }
+        const deduplicatedTrainings = Array.from(uniqueMap.values())
+        console.log(`Deduplicated: ${trainingsToUpsert.length} -> ${deduplicatedTrainings.length}`)
+        
         // Batch upsert всех тренировок
-        if (trainingsToUpsert.length > 0) {
+        if (deduplicatedTrainings.length > 0) {
           const { data: upserted, error: upsertError } = await supabase
             .from('trainings')
-            .upsert(trainingsToUpsert, { 
+            .upsert(deduplicatedTrainings, { 
               onConflict: 'channel_id,date,time_start,message_id',
               ignoreDuplicates: false
             })
@@ -1594,9 +1663,9 @@ Deno.serve(async (req) => {
           
           if (upsertError) {
             console.error(`Batch upsert error for AI text parsing:`, upsertError.message)
-            totalSkipped += trainingsToUpsert.length
+            totalSkipped += deduplicatedTrainings.length
           } else {
-            const upsertedCount = upserted?.length || trainingsToUpsert.length
+            const upsertedCount = upserted?.length || deduplicatedTrainings.length
             totalAdded += upsertedCount
             console.log(`Batch upserted ${upsertedCount} trainings from AI text parsing`)
           }
