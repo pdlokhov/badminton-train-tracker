@@ -483,6 +483,21 @@ function parseTrainingFromText(text: string, messageId: string, knownLocations: 
     }
   }
   
+  // 3.7. Ищем формат "X-Y" (голые часы без "с/до"): "21-23", "10-12", "17-19"
+  if (!time_start) {
+    const bareHoursMatch = textForTimeSearch.match(/\b(\d{1,2})\s*[-–—]\s*(\d{1,2})\b/)
+    if (bareHoursMatch) {
+      const startHour = parseInt(bareHoursMatch[1])
+      const endHour = parseInt(bareHoursMatch[2])
+      // Проверяем что это валидные часы (0-23) и end > start (чтобы не матчить даты типа "7-01")
+      if (startHour >= 0 && startHour <= 23 && endHour >= 0 && endHour <= 23 && endHour > startHour) {
+        time_start = startHour.toString().padStart(2, '0') + ':00'
+        time_end = endHour.toString().padStart(2, '0') + ':00'
+        console.log(`Message ${messageId}: bare hours X-Y = ${time_start} - ${time_end}`)
+      }
+    }
+  }
+  
   // 4. Если всё ещё не нашли, ищем отдельные времена с двоеточием или точкой
   if (!time_start) {
     const timeRegex = /\b([01]?\d|2[0-3])[.:]([0-5]\d)\b/g
