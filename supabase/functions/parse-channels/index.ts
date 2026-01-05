@@ -11,7 +11,11 @@ interface Channel {
   name: string
   is_active: boolean
   parse_images: boolean
+  use_ai_text_parsing: boolean
   topic_id: number | null
+  default_coach: string | null
+  permanent_signup_url_game: string | null
+  permanent_signup_url_group: string | null
 }
 
 interface Location {
@@ -987,6 +991,139 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
   }
 }
 
+// ================== AI TEXT SCHEDULE PARSING ==================
+interface AITextTraining {
+  title: string | null
+  date: string // YYYY-MM-DD
+  time_start: string // HH:MM
+  time_end: string | null
+  type: string | null
+  level: string | null
+  coach: string | null
+  location: string | null
+  signup_url: string | null
+  description: string | null
+}
+
+interface AITextScheduleResult {
+  trainings: AITextTraining[]
+}
+
+// Создаём хэш для текста сообщения (для кэширования)
+function hashMessage(text: string): string {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return Math.abs(hash).toString(36)
+}
+
+// Анализ текстового расписания через Lovable AI
+async function analyzeScheduleText(text: string, currentYear: number): Promise<AITextScheduleResult | null> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
+  if (!LOVABLE_API_KEY) {
+    console.error('LOVABLE_API_KEY not configured')
+    return null
+  }
+  
+  console.log(`Analyzing text schedule (${text.length} chars)`)
+  
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [{
+          role: 'user',
+          content: `Проанализируй текст расписания тренировок по бадминтону.
+Текущий год: ${currentYear}.
+
+ТЕКСТ ДЛЯ АНАЛИЗА:
+${text}
+
+ВАЖНЫЕ ПРАВИЛА:
+1. Извлеки ВСЕ тренировки, турниры и события из текста
+2. Для каждой записи определи:
+   - date: дату в формате YYYY-MM-DD (преобразуй день недели и дату в скобках типа "Понедельник (29.12)" в полную дату)
+   - time_start: время начала в формате HH:MM
+   - time_end: время окончания в формате HH:MM (если указано)
+   - type: тип (тренировка/игровая/турнир/командник/групповая и т.д.)
+   - level: уровень участников ТОЧНО как написано (например: "для продолжающих и продвинутых", "для всех уровней", "Е-F" и т.д.)
+   - coach: имя тренера если указано
+   - location: название локации (обрати внимание на заголовки с 🎯 или адреса)
+   - signup_url: ссылку для записи (VK или Telegram)
+   - description: дополнительное описание
+3. Если несколько тренировок в одно время - создай ОТДЕЛЬНЫЕ записи для каждой
+4. Если несколько локаций в тексте - правильно соотнеси тренировки с локациями
+5. Игнорируй общие объявления без конкретной даты/времени
+6. Если месяц декабрь, а дата в следующем году (январь+) - используй следующий год`
+        }],
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'extract_text_schedule',
+            description: 'Извлечь расписание тренировок из текста',
+            parameters: {
+              type: 'object',
+              properties: {
+                trainings: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string', description: 'Название события (опционально)' },
+                      date: { type: 'string', description: 'Дата в формате YYYY-MM-DD' },
+                      time_start: { type: 'string', description: 'Время начала HH:MM' },
+                      time_end: { type: 'string', description: 'Время окончания HH:MM' },
+                      type: { type: 'string', description: 'Тип: тренировка/игровая/турнир/групповая' },
+                      level: { type: 'string', description: 'Уровень участников' },
+                      coach: { type: 'string', description: 'Имя тренера' },
+                      location: { type: 'string', description: 'Название локации/зала' },
+                      signup_url: { type: 'string', description: 'Ссылка для записи (VK или Telegram)' },
+                      description: { type: 'string', description: 'Дополнительное описание' }
+                    },
+                    required: ['date', 'time_start']
+                  }
+                }
+              },
+              required: ['trainings']
+            }
+          }
+        }],
+        tool_choice: { type: 'function', function: { name: 'extract_text_schedule' } }
+      })
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`AI API error: ${response.status} - ${errorText}`)
+      return null
+    }
+    
+    const data = await response.json()
+    console.log('AI text response:', JSON.stringify(data, null, 2))
+    
+    // Извлекаем результат из tool call
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0]
+    if (toolCall?.function?.arguments) {
+      const result = JSON.parse(toolCall.function.arguments) as AITextScheduleResult
+      console.log(`Extracted ${result.trainings?.length || 0} trainings from text via AI`)
+      return result
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error analyzing text schedule:', error)
+    return null
+  }
+}
+
 // Поиск локации по названию из изображения
 function findLocationByImageName(locationName: string | null, knownLocations: Location[]): { name: string; id: string } | null {
   if (!locationName) return null
@@ -1194,7 +1331,8 @@ Deno.serve(async (req) => {
 
     for (const channel of sortedChannels) {
       console.log(`\n=== Processing channel: ${channel.name} (@${channel.username})${channel.topic_id ? ` [topic: ${channel.topic_id}]` : ''} ===`)
-      console.log(`Parse mode: ${channel.parse_images ? 'IMAGES' : 'TEXT'}`)
+      const parseMode = channel.parse_images ? 'IMAGES' : (channel.use_ai_text_parsing ? 'AI_TEXT' : 'TEXT')
+      console.log(`Parse mode: ${parseMode}`)
       
       if (channel.parse_images) {
         // ===== РЕЖИМ ПАРСИНГА ИЗОБРАЖЕНИЙ =====
@@ -1316,6 +1454,151 @@ Deno.serve(async (req) => {
             console.error(`Error saving processed image record:`, insertError)
           } else {
             console.log(`Saved processed image record for message ${img.messageId} (${trainingsAddedFromImage} trainings)`)
+          }
+        }
+      } else if (channel.use_ai_text_parsing) {
+        // ===== РЕЖИМ AI-ПАРСИНГА ТЕКСТА =====
+        console.log(`Using AI for text parsing`)
+        
+        // Получаем ВСЕ сообщения (без фильтрации по дате DD.MM, т.к. AI сам разберётся)
+        const url = `https://t.me/s/${channel.username}`
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        })
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch ${url}: ${response.status}`)
+          continue
+        }
+        
+        const html = await response.text()
+        const messageRegex = channel.topic_id 
+          ? new RegExp(`data-post="${channel.username}/${channel.topic_id}/(\\d+)"[^>]*>[\\s\\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\\s\\S]*?)<\\/div>`, 'g')
+          : /data-post="[^"]*\/(\d+)"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/g
+        
+        const allMessages: { text: string, messageId: string }[] = []
+        let match
+        while ((match = messageRegex.exec(html)) !== null) {
+          const messageId = match[1]
+          let text = match[2]
+          text = text.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
+          
+          // Фильтруем только большие сообщения (вероятные расписания)
+          if (text.length > 200) {
+            allMessages.push({ text, messageId: channel.topic_id ? `${channel.topic_id}_${messageId}` : messageId })
+          }
+        }
+        
+        console.log(`Found ${allMessages.length} potential schedule messages for AI parsing`)
+        totalParsed += allMessages.length
+        
+        const currentYear = new Date().getFullYear()
+        const trainingsToUpsert = []
+        
+        for (const msg of allMessages) {
+          // Проверяем кэш обработанных сообщений
+          const msgHash = hashMessage(msg.text)
+          
+          if (!force) {
+            const { data: existingRecord } = await supabase
+              .from('processed_messages')
+              .select('id, trainings_count')
+              .eq('channel_id', channel.id)
+              .eq('message_id', msg.messageId)
+              .eq('message_hash', msgHash)
+              .maybeSingle()
+            
+            if (existingRecord) {
+              console.log(`Message ${msg.messageId} already processed (${existingRecord.trainings_count} trainings), skipping AI analysis`)
+              totalFromCache++
+              continue
+            }
+          }
+          
+          // Вызываем AI для парсинга
+          const aiResult = await analyzeScheduleText(msg.text, currentYear)
+          
+          if (!aiResult || !aiResult.trainings || aiResult.trainings.length === 0) {
+            console.log(`No trainings found in message ${msg.messageId} via AI`)
+            // Сохраняем в кэш
+            await supabase.from('processed_messages').upsert({
+              channel_id: channel.id,
+              message_id: msg.messageId,
+              message_hash: msgHash,
+              trainings_count: 0
+            }, { onConflict: 'channel_id,message_id' })
+            totalSkipped++
+            continue
+          }
+          
+          let trainingsFromMessage = 0
+          
+          for (const training of aiResult.trainings) {
+            // Находим локацию из справочника
+            const locationResult = training.location ? findLocation(training.location, knownLocations) : null
+            
+            // Определяем тип тренировки
+            const trainingType = training.type ? parseTrainingType(training.type) : null
+            
+            // Определяем signup_url: из AI или из настроек канала
+            let signupUrl = training.signup_url || null
+            if (!signupUrl) {
+              if (trainingType === 'игровая' || trainingType === 'мини-игровая') {
+                signupUrl = channel.permanent_signup_url_game || null
+              } else {
+                signupUrl = channel.permanent_signup_url_group || null
+              }
+            }
+            
+            const trainingRecord = {
+              channel_id: channel.id,
+              message_id: `ai_${msg.messageId}_${training.date}_${training.time_start}`,
+              title: training.title || `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
+              date: training.date,
+              time_start: training.time_start,
+              time_end: training.time_end || null,
+              type: trainingType,
+              level: training.level || null,
+              location: locationResult?.name || training.location || null,
+              location_id: locationResult?.id || null,
+              raw_text: msg.text.substring(0, 500),
+              coach: training.coach || channel.default_coach || null,
+              signup_url: signupUrl,
+              description: training.description || null,
+              price: null
+            }
+            
+            trainingsToUpsert.push(trainingRecord)
+            trainingsFromMessage++
+          }
+          
+          // Сохраняем в кэш
+          await supabase.from('processed_messages').upsert({
+            channel_id: channel.id,
+            message_id: msg.messageId,
+            message_hash: msgHash,
+            trainings_count: trainingsFromMessage
+          }, { onConflict: 'channel_id,message_id' })
+        }
+        
+        // Batch upsert всех тренировок
+        if (trainingsToUpsert.length > 0) {
+          const { data: upserted, error: upsertError } = await supabase
+            .from('trainings')
+            .upsert(trainingsToUpsert, { 
+              onConflict: 'channel_id,date,time_start,message_id',
+              ignoreDuplicates: false
+            })
+            .select('id')
+          
+          if (upsertError) {
+            console.error(`Batch upsert error for AI text parsing:`, upsertError.message)
+            totalSkipped += trainingsToUpsert.length
+          } else {
+            const upsertedCount = upserted?.length || trainingsToUpsert.length
+            totalAdded += upsertedCount
+            console.log(`Batch upserted ${upsertedCount} trainings from AI text parsing`)
           }
         }
       } else {

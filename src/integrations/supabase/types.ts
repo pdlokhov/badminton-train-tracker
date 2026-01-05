@@ -139,6 +139,7 @@ export type Database = {
           topic_id: number | null
           updated_at: string
           url: string
+          use_ai_text_parsing: boolean
           username: string
         }
         Insert: {
@@ -154,6 +155,7 @@ export type Database = {
           topic_id?: number | null
           updated_at?: string
           url: string
+          use_ai_text_parsing?: boolean
           username: string
         }
         Update: {
@@ -169,6 +171,7 @@ export type Database = {
           topic_id?: number | null
           updated_at?: string
           url?: string
+          use_ai_text_parsing?: boolean
           username?: string
         }
         Relationships: [
@@ -254,6 +257,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "processed_images_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processed_messages: {
+        Row: {
+          channel_id: string
+          id: string
+          message_hash: string
+          message_id: string
+          processed_at: string
+          trainings_count: number | null
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          message_hash: string
+          message_id: string
+          processed_at?: string
+          trainings_count?: number | null
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          message_hash?: string
+          message_id?: string
+          processed_at?: string
+          trainings_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processed_messages_channel_id_fkey"
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
