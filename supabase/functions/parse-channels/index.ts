@@ -89,6 +89,11 @@ function parseTrainingType(text: string): string | null {
     return 'техника'
   }
   
+  // Турниры и командные события
+  if (/турнир|командник|микстер/i.test(text)) {
+    return 'турнир'
+  }
+  
   // Игра (используем negative lookahead вместо \b, т.к. \b не работает с кириллицей)
   if (/игра(?![а-яё])/i.test(text)) {
     return 'игровая'
