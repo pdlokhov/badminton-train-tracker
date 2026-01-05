@@ -148,12 +148,15 @@ function normalizeLevel(levelStr: string): string {
 // Поиск локации из справочника
 function findLocation(text: string, knownLocations: Location[]): { name: string; id: string } | null {
   const textLower = text.toLowerCase()
+  const textNormalized = textLower.replace(/[,\s]+/g, ' ')
   
   for (const loc of knownLocations) {
+    const formatName = (l: Location) => l.address ? `${l.name}, ${l.address}` : l.name
+    
     // Проверяем основное имя
     if (textLower.includes(loc.name.toLowerCase())) {
       console.log(`Found location by name: ${loc.name}`)
-      return { name: loc.address ? `${loc.name} (${loc.address})` : loc.name, id: loc.id }
+      return { name: formatName(loc), id: loc.id }
     }
     
     // Проверяем алиасы
@@ -161,8 +164,17 @@ function findLocation(text: string, knownLocations: Location[]): { name: string;
       for (const alias of loc.aliases) {
         if (textLower.includes(alias.toLowerCase())) {
           console.log(`Found location by alias "${alias}": ${loc.name}`)
-          return { name: loc.address ? `${loc.name} (${loc.address})` : loc.name, id: loc.id }
+          return { name: formatName(loc), id: loc.id }
         }
+      }
+    }
+    
+    // Проверяем адрес
+    if (loc.address) {
+      const addressNormalized = loc.address.toLowerCase().replace(/[,\s]+/g, ' ').trim()
+      if (textNormalized.includes(addressNormalized)) {
+        console.log(`Found location by address "${loc.address}": ${loc.name}`)
+        return { name: formatName(loc), id: loc.id }
       }
     }
   }
