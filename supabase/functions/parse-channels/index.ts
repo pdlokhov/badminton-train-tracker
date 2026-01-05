@@ -54,6 +54,10 @@ interface ImageScheduleTraining {
 
 interface ImageScheduleResult {
   location: string | null
+  date_range?: {
+    start: string | null
+    end: string | null
+  }
   trainings: ImageScheduleTraining[]
 }
 
@@ -948,6 +952,10 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 
 Извлеки данные и верни JSON в формате:
 {
+  "date_range": {
+    "start": "DD.MM" (начальная дата из заголовка, например "22.12"),
+    "end": "DD.MM" (конечная дата из заголовка, например "30.12")
+  },
   "trainings": [
     {
       "type": "тип тренировки (техника/игра/групповая/мини-игровая и т.д.)",
@@ -962,15 +970,12 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 }
 
 КРИТИЧЕСКИ ВАЖНО:
-1. Если в ОДНО ВРЕМЯ проходит НЕСКОЛЬКО тренировок (разные типы/уровни/тренеры) - создавай ОТДЕЛЬНУЮ запись для КАЖДОЙ тренировки!
-   Например, если в 19:00-20:30 идут "Игра (С-Е)", "Группа (Е-Н) Екатерина" и "Мини-группа (Е-F) Егор" - это ТРИ разные записи!
-2. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
-3. Если уровень не указан, оставь null
-4. Если тренер не указан, оставь coach как null (например "Игра (С-Е) без тренера")
-5. Если на изображении нет расписания тренировок, верни пустой массив trainings
-6. LOCATION — это МЕСТО проведения тренировки из текста расписания (ЦЕХ№1, Динамит, Беговая и т.д.), а НЕ название клуба/канала!
-   Ищи локацию ПЕРЕД или НАД списком тренировок — часто это отдельная строка типа "ЦЕХ № 1" или "Динамит".
-   НЕ путай название клуба (LB CLUB, Шаг Вперёд) с местом проведения!`
+1. ОБЯЗАТЕЛЬНО извлеки ДИАПАЗОН ДАТ из заголовка изображения! Ищи текст типа "Расписание на 22.12-30.12" или "25.12 - 31.12"
+2. Если в ОДНО ВРЕМЯ проходит НЕСКОЛЬКО тренировок (разные типы/уровни/тренеры) - создавай ОТДЕЛЬНУЮ запись для КАЖДОЙ тренировки!
+3. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
+4. Если уровень не указан, оставь null
+5. Если тренер не указан, оставь coach как null
+6. LOCATION — это МЕСТО проведения тренировки (ЦЕХ№1, Динамит, Беговая), а НЕ название клуба (LB CLUB это НЕ локация)!`
             },
             {
               type: 'image_url',
@@ -986,6 +991,14 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
             parameters: {
               type: 'object',
               properties: {
+                date_range: {
+                  type: 'object',
+                  description: 'Диапазон дат из заголовка изображения',
+                  properties: {
+                    start: { type: 'string', description: 'Начальная дата DD.MM' },
+                    end: { type: 'string', description: 'Конечная дата DD.MM' }
+                  }
+                },
                 trainings: {
                   type: 'array',
                   items: {
@@ -1428,25 +1441,77 @@ Deno.serve(async (req) => {
           // Глобальная локация (fallback из старого формата)
           const globalLocationResult = scheduleResult.location ? findLocationByImageName(scheduleResult.location, knownLocations) : null
           
-          // Определяем месяцы для генерации дат (текущий и следующий)
+          // Парсим диапазон дат из результата AI
           const now = new Date()
-          const currentMonth = now.getMonth()
           const currentYear = now.getFullYear()
-          const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1
-          const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear
+          
+          let dateRangeStart: Date | null = null
+          let dateRangeEnd: Date | null = null
+          
+          if (scheduleResult.date_range?.start && scheduleResult.date_range?.end) {
+            // Парсим DD.MM формат
+            const parseDate = (dateStr: string): Date | null => {
+              const match = dateStr.match(/(\d{1,2})\.(\d{1,2})/)
+              if (!match) return null
+              const day = parseInt(match[1], 10)
+              const month = parseInt(match[2], 10) - 1 // 0-indexed
+              // Определяем год: если месяц меньше текущего, значит это следующий год
+              const year = month < now.getMonth() - 1 ? currentYear + 1 : currentYear
+              return new Date(year, month, day)
+            }
+            
+            dateRangeStart = parseDate(scheduleResult.date_range.start)
+            dateRangeEnd = parseDate(scheduleResult.date_range.end)
+            
+            // Если конечная дата раньше начальной — переносим на следующий год
+            if (dateRangeStart && dateRangeEnd && dateRangeEnd < dateRangeStart) {
+              dateRangeEnd.setFullYear(dateRangeEnd.getFullYear() + 1)
+            }
+            
+            console.log(`Date range from image: ${dateRangeStart?.toISOString()} - ${dateRangeEnd?.toISOString()}`)
+          }
           
           let trainingsAddedFromImage = 0
           const trainingsToUpsert = []
           
           for (const training of scheduleResult.trainings) {
-            // Получаем все даты для этого дня недели в текущем и следующем месяце
-            const datesCurrentMonth = getDatesForDayInMonth(training.day, currentYear, currentMonth)
-            const datesNextMonth = getDatesForDayInMonth(training.day, nextMonthYear, nextMonth)
-            const allDates = [...datesCurrentMonth, ...datesNextMonth]
+            // Если есть диапазон дат — находим дату для этого дня недели в пределах диапазона
+            // Если нет — используем старую логику (все даты в текущем и следующем месяце)
+            let datesToUse: string[] = []
             
-            console.log(`Training: ${training.type} ${training.day} ${training.time_start} - dates: ${allDates.join(', ')}`)
+            if (dateRangeStart && dateRangeEnd) {
+              // Находим все даты этого дня недели в пределах диапазона
+              const dayMap: Record<string, number> = {
+                'воскресенье': 0, 'понедельник': 1, 'вторник': 2, 'среда': 3,
+                'четверг': 4, 'пятница': 5, 'суббота': 6
+              }
+              const targetDayIndex = dayMap[training.day.toLowerCase()]
+              
+              if (targetDayIndex !== undefined) {
+                const checkDate = new Date(dateRangeStart)
+                while (checkDate <= dateRangeEnd) {
+                  if (checkDate.getDay() === targetDayIndex) {
+                    const y = checkDate.getFullYear()
+                    const m = String(checkDate.getMonth() + 1).padStart(2, '0')
+                    const d = String(checkDate.getDate()).padStart(2, '0')
+                    datesToUse.push(`${y}-${m}-${d}`)
+                  }
+                  checkDate.setDate(checkDate.getDate() + 1)
+                }
+              }
+            } else {
+              // Fallback: все даты в текущем и следующем месяце
+              const currentMonth = now.getMonth()
+              const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1
+              const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear
+              const datesCurrentMonth = getDatesForDayInMonth(training.day, currentYear, currentMonth)
+              const datesNextMonth = getDatesForDayInMonth(training.day, nextMonthYear, nextMonth)
+              datesToUse = [...datesCurrentMonth, ...datesNextMonth]
+            }
             
-            for (const date of allDates) {
+            console.log(`Training: ${training.type} ${training.day} ${training.time_start} - dates: ${datesToUse.join(', ')}`)
+            
+            for (const date of datesToUse) {
               // Локация: сначала из training.location, потом глобальная
               const trainingLocationResult = training.location 
                 ? findLocationByImageName(training.location, knownLocations)
