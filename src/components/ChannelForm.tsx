@@ -45,6 +45,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   const [name, setName] = useState("");
   const [defaultCoach, setDefaultCoach] = useState("");
   const [parseImages, setParseImages] = useState(false);
+  const [useAiTextParsing, setUseAiTextParsing] = useState(false);
   const [topicId, setTopicId] = useState("");
   const [permanentSignupUrlGame, setPermanentSignupUrlGame] = useState("");
   const [permanentSignupUrlGroup, setPermanentSignupUrlGroup] = useState("");
@@ -105,11 +106,12 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         url: normalizedUrl,
         username: username,
         parse_images: parseImages,
+        use_ai_text_parsing: useAiTextParsing,
         default_coach: defaultCoach.trim() || null,
         topic_id: finalTopicId || null,
         permanent_signup_url_game: permanentSignupUrlGame.trim() || null,
         permanent_signup_url_group: permanentSignupUrlGroup.trim() || null,
-      });
+      } as any);
 
       if (error) {
         if (error.code === "23505") {
@@ -139,6 +141,7 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       setName("");
       setDefaultCoach("");
       setParseImages(false);
+      setUseAiTextParsing(false);
       setTopicId("");
       setPermanentSignupUrlGame("");
       setPermanentSignupUrlGroup("");
@@ -227,15 +230,31 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       <p className="text-xs text-muted-foreground">
         Если указаны, карточки тренировок будут вести на соответствующие ссылки
       </p>
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="parse_images"
-          checked={parseImages}
-          onCheckedChange={(checked) => setParseImages(checked === true)}
-        />
-        <Label htmlFor="parse_images" className="text-sm font-normal cursor-pointer">
-          Искать расписание в картинках (вместо текстовых сообщений)
-        </Label>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="parse_images"
+            checked={parseImages}
+            onCheckedChange={(checked) => {
+              setParseImages(checked === true);
+              if (checked) setUseAiTextParsing(false);
+            }}
+          />
+          <Label htmlFor="parse_images" className="text-sm font-normal cursor-pointer">
+            Искать расписание в картинках (вместо текстовых сообщений)
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="use_ai_text_parsing"
+            checked={useAiTextParsing}
+            disabled={parseImages}
+            onCheckedChange={(checked) => setUseAiTextParsing(checked === true)}
+          />
+          <Label htmlFor="use_ai_text_parsing" className={`text-sm font-normal cursor-pointer ${parseImages ? 'text-muted-foreground' : ''}`}>
+            Использовать AI для парсинга текста (для сложных расписаний с несколькими локациями)
+          </Label>
+        </div>
       </div>
       <Button type="submit" disabled={isLoading}>
         <Plus className="mr-2 h-4 w-4" />

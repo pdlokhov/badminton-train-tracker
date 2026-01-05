@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -48,6 +48,7 @@ interface Channel {
   username: string;
   is_active: boolean;
   parse_images: boolean;
+  use_ai_text_parsing: boolean;
   default_coach: string | null;
   default_location_id: string | null;
   permanent_signup_url_game?: string | null;
@@ -280,6 +281,11 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                     <Badge variant="secondary" className="flex items-center gap-1 w-fit">
                       <Image className="h-3 w-3" />
                       Картинки
+                    </Badge>
+                  ) : channel.use_ai_text_parsing ? (
+                    <Badge className="flex items-center gap-1 w-fit bg-violet-500/10 text-violet-600 border-violet-200">
+                      <Sparkles className="h-3 w-3" />
+                      AI Текст
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="flex items-center gap-1 w-fit">
