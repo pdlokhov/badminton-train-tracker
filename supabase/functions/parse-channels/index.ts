@@ -43,6 +43,7 @@ interface ParsedTraining {
 }
 
 interface ImageScheduleTraining {
+  date: string // DD.MM - вычисленная AI дата
   type: string | null
   level: string | null
   coach: string | null
@@ -953,11 +954,12 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 Извлеки данные и верни JSON в формате:
 {
   "date_range": {
-    "start": "DD.MM" (начальная дата из заголовка, например "22.12"),
-    "end": "DD.MM" (конечная дата из заголовка, например "30.12")
+    "start": "DD.MM" (начальная дата из заголовка, например "06.01"),
+    "end": "DD.MM" (конечная дата из заголовка, например "12.01")
   },
   "trainings": [
     {
+      "date": "DD.MM" — ВЫЧИСЛЕННАЯ дата тренировки,
       "type": "тип тренировки (техника/игра/групповая/мини-игровая и т.д.)",
       "level": "уровень ТОЧНО КАК НАПИСАНО в изображении (например: Б1-Б2, ВСЕ УРОВНИ, A-B, С-Е, Е-Н начинающие, Е-F)",
       "coach": "имя тренера если указано (например: Екатерина, Егор, Александр)",
@@ -970,12 +972,24 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 }
 
 КРИТИЧЕСКИ ВАЖНО:
-1. ОБЯЗАТЕЛЬНО извлеки ДИАПАЗОН ДАТ из заголовка изображения! Ищи текст типа "Расписание на 22.12-30.12" или "25.12 - 31.12"
-2. Если в ОДНО ВРЕМЯ проходит НЕСКОЛЬКО тренировок (разные типы/уровни/тренеры) - создавай ОТДЕЛЬНУЮ запись для КАЖДОЙ тренировки!
-3. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
-4. Если уровень не указан, оставь null
-5. Если тренер не указан, оставь coach как null
-6. LOCATION — это МЕСТО проведения тренировки (ЦЕХ№1, Динамит, Беговая), а НЕ название клуба (LB CLUB это НЕ локация)!`
+1. ОБЯЗАТЕЛЬНО извлеки ДИАПАЗОН ДАТ из заголовка изображения! Ищи текст типа "Расписание на 06.01-12.01" или "25.12 - 31.12"
+2. ВЫЧИСЛИ ДАТУ каждой тренировки по ДИАПАЗОНУ ДАТ и ДНЮ НЕДЕЛИ:
+   - Определи какой день недели соответствует НАЧАЛУ диапазона (start)
+   - Если диапазон "06.01 - 12.01" и 06.01 это ПОНЕДЕЛЬНИК, тогда:
+     * Понедельник = 06.01
+     * Вторник = 07.01
+     * Среда = 08.01
+     * Четверг = 09.01
+     * Пятница = 10.01
+     * Суббота = 11.01
+     * Воскресенье = 12.01
+   - Верни вычисленную дату в поле "date" в формате DD.MM
+3. Если в ОДНО ВРЕМЯ проходит НЕСКОЛЬКО тренировок (разные типы/уровни/тренеры) - создавай ОТДЕЛЬНУЮ запись для КАЖДОЙ тренировки!
+4. Уровни оставляй ТОЧНО как написано в изображении, НЕ преобразовывай и НЕ нормализуй!
+5. Если уровень не указан, оставь null
+6. Если тренер не указан, оставь coach как null
+7. LOCATION — это МЕСТО проведения тренировки (ЦЕХ№1, Динамит, Беговая), а НЕ название клуба (LB CLUB это НЕ локация)!
+8. Формат даты DD.MM означает ДЕНЬ.МЕСЯЦ (05.01 = 5 января, НЕ 5 октября!)`
             },
             {
               type: 'image_url',
@@ -1004,6 +1018,7 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
                   items: {
                     type: 'object',
                     properties: {
+                      date: { type: 'string', description: 'Вычисленная дата тренировки DD.MM' },
                       type: { type: 'string', description: 'Тип тренировки' },
                       level: { type: 'string', description: 'Уровень как в оригинале' },
                       coach: { type: 'string', description: 'Имя тренера' },
@@ -1012,7 +1027,7 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
                       time_end: { type: 'string', description: 'Время окончания HH:MM' },
                       location: { type: 'string', description: 'Место проведения (ЦЕХ№1, Динамит и т.д.)' }
                     },
-                    required: ['day', 'time_start']
+                    required: ['date', 'day', 'time_start']
                   }
                 }
               },
@@ -1475,12 +1490,37 @@ Deno.serve(async (req) => {
           const trainingsToUpsert = []
           
           for (const training of scheduleResult.trainings) {
-            // Если есть диапазон дат — находим дату для этого дня недели в пределах диапазона
-            // Если нет — используем старую логику (все даты в текущем и следующем месяце)
-            let datesToUse: string[] = []
+            // AI теперь возвращает дату напрямую в формате DD.MM
+            // Преобразуем в YYYY-MM-DD
+            let trainingDate: string | null = null
             
-            if (dateRangeStart && dateRangeEnd) {
-              // Находим все даты этого дня недели в пределах диапазона
+            if (training.date) {
+              const match = training.date.match(/(\d{1,2})\.(\d{1,2})/)
+              if (match) {
+                const day = parseInt(match[1], 10)
+                const month = parseInt(match[2], 10) - 1 // 0-indexed
+                
+                // Определяем год по логике: если месяц сильно в прошлом — следующий год
+                const currentMonth = now.getMonth()
+                const monthDiff = month - currentMonth
+                
+                let year = currentYear
+                if (monthDiff < -2) {
+                  // Месяц сильно в прошлом — следующий год
+                  year = currentYear + 1
+                } else if (monthDiff > 9) {
+                  // Месяц сильно в будущем — прошлый год
+                  year = currentYear - 1
+                }
+                
+                const m = String(month + 1).padStart(2, '0')
+                const d = String(day).padStart(2, '0')
+                trainingDate = `${year}-${m}-${d}`
+              }
+            }
+            
+            // Fallback: если AI не вернул date, используем старую логику с date_range
+            if (!trainingDate && dateRangeStart && dateRangeEnd) {
               const dayMap: Record<string, number> = {
                 'воскресенье': 0, 'понедельник': 1, 'вторник': 2, 'среда': 3,
                 'четверг': 4, 'пятница': 5, 'суббота': 6
@@ -1494,51 +1534,47 @@ Deno.serve(async (req) => {
                     const y = checkDate.getFullYear()
                     const m = String(checkDate.getMonth() + 1).padStart(2, '0')
                     const d = String(checkDate.getDate()).padStart(2, '0')
-                    datesToUse.push(`${y}-${m}-${d}`)
+                    trainingDate = `${y}-${m}-${d}`
+                    break // берём первую подходящую дату
                   }
                   checkDate.setDate(checkDate.getDate() + 1)
                 }
               }
-            } else {
-              // Fallback: все даты в текущем и следующем месяце
-              const currentMonth = now.getMonth()
-              const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1
-              const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear
-              const datesCurrentMonth = getDatesForDayInMonth(training.day, currentYear, currentMonth)
-              const datesNextMonth = getDatesForDayInMonth(training.day, nextMonthYear, nextMonth)
-              datesToUse = [...datesCurrentMonth, ...datesNextMonth]
             }
             
-            console.log(`Training: ${training.type} ${training.day} ${training.time_start} - dates: ${datesToUse.join(', ')}`)
-            
-            for (const date of datesToUse) {
-              // Локация: сначала из training.location, потом глобальная
-              const trainingLocationResult = training.location 
-                ? findLocationByImageName(training.location, knownLocations)
-                : globalLocationResult
-              
-              const trainingRecord = {
-                channel_id: channel.id,
-                message_id: `img_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${date}_${training.location || 'noloc'}`,
-                title: `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
-                date: date,
-                time_start: training.time_start,
-                time_end: training.time_end || null,
-                type: parseTrainingType(training.type || ''),
-                level: training.level || null,
-                location: trainingLocationResult?.name || training.location || null,
-                location_id: trainingLocationResult?.id || null,
-                raw_text: JSON.stringify(training),
-                coach: training.coach || null,
-                price: null,
-                description: training.location || scheduleResult.location || null
-              }
-              
-              trainingsToUpsert.push(trainingRecord)
+            if (!trainingDate) {
+              console.log(`Skipping training without date: ${training.type} ${training.day}`)
+              continue
             }
+            
+            console.log(`Training: ${training.type} ${training.day} ${training.time_start} -> date: ${trainingDate}`)
+            
+            // Локация: сначала из training.location, потом глобальная
+            const trainingLocationResult = training.location 
+              ? findLocationByImageName(training.location, knownLocations)
+              : globalLocationResult
+            
+            const trainingRecord = {
+              channel_id: channel.id,
+              message_id: `img_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${trainingDate}_${training.location || 'noloc'}`,
+              title: `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
+              date: trainingDate,
+              time_start: training.time_start,
+              time_end: training.time_end || null,
+              type: parseTrainingType(training.type || ''),
+              level: training.level || null,
+              location: trainingLocationResult?.name || training.location || null,
+              location_id: trainingLocationResult?.id || null,
+              raw_text: JSON.stringify(training),
+              coach: training.coach || null,
+              price: null,
+              description: training.location || scheduleResult.location || null
+            }
+            
+            trainingsToUpsert.push(trainingRecord)
           }
           
-        // Batch upsert всех тренировок одним запросом
+          // Batch upsert всех тренировок одним запросом
           if (trainingsToUpsert.length > 0) {
             // Нормализуем time_start: null -> '00:00:00' для уникального индекса
             const normalizedTrainings = trainingsToUpsert.map(t => ({
