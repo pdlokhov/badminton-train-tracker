@@ -1453,11 +1453,17 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Batch upsert всех тренировок одним запросом
+        // Batch upsert всех тренировок одним запросом
           if (trainingsToUpsert.length > 0) {
+            // Нормализуем time_start: null -> '00:00:00' для уникального индекса
+            const normalizedTrainings = trainingsToUpsert.map(t => ({
+              ...t,
+              time_start: t.time_start || '00:00:00'
+            }))
+            
             const { data: upserted, error: upsertError } = await supabase
               .from('trainings')
-              .upsert(trainingsToUpsert, { 
+              .upsert(normalizedTrainings, { 
                 onConflict: 'channel_id,date,time_start,message_id',
                 ignoreDuplicates: false
               })
@@ -1670,9 +1676,15 @@ Deno.serve(async (req) => {
         
         // Batch upsert всех тренировок
         if (deduplicatedTrainings.length > 0) {
+          // Нормализуем time_start: null -> '00:00:00' для уникального индекса
+          const normalizedTrainings = deduplicatedTrainings.map(t => ({
+            ...t,
+            time_start: t.time_start || '00:00:00'
+          }))
+          
           const { data: upserted, error: upsertError } = await supabase
             .from('trainings')
-            .upsert(deduplicatedTrainings, { 
+            .upsert(normalizedTrainings, { 
               onConflict: 'channel_id,date,time_start,message_id',
               ignoreDuplicates: false
             })
@@ -1728,9 +1740,15 @@ Deno.serve(async (req) => {
         
         // Batch upsert всех тренировок одним запросом
         if (trainingsToUpsert.length > 0) {
+          // Нормализуем time_start: null -> '00:00:00' для уникального индекса
+          const normalizedTrainings = trainingsToUpsert.map(t => ({
+            ...t,
+            time_start: t.time_start || '00:00:00'
+          }))
+          
           const { data: upserted, error: upsertError } = await supabase
             .from('trainings')
-            .upsert(trainingsToUpsert, { 
+            .upsert(normalizedTrainings, { 
               onConflict: 'channel_id,date,time_start,message_id',
               ignoreDuplicates: false
             })
