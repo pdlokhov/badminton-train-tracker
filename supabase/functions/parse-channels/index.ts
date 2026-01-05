@@ -49,6 +49,7 @@ interface ImageScheduleTraining {
   day: string
   time_start: string
   time_end: string | null
+  location: string | null
 }
 
 interface ImageScheduleResult {
@@ -947,7 +948,6 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 
 Извлеки данные и верни JSON в формате:
 {
-  "location": "название локации из заголовка изображения (например: М. Петроградская, Приморская и т.д.)",
   "trainings": [
     {
       "type": "тип тренировки (техника/игра/групповая/мини-игровая и т.д.)",
@@ -955,7 +955,8 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
       "coach": "имя тренера если указано (например: Екатерина, Егор, Александр)",
       "day": "день недели на русском в нижнем регистре (понедельник, вторник, среда...)",
       "time_start": "время начала в формате HH:MM",
-      "time_end": "время окончания в формате HH:MM (если есть)"
+      "time_end": "время окончания в формате HH:MM (если есть)",
+      "location": "место проведения (например: ЦЕХ№1, Динамит, Беговая, Приморская)"
     }
   ]
 }
@@ -967,7 +968,9 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
 3. Если уровень не указан, оставь null
 4. Если тренер не указан, оставь coach как null (например "Игра (С-Е) без тренера")
 5. Если на изображении нет расписания тренировок, верни пустой массив trainings
-6. Локацию бери из заголовка изображения`
+6. LOCATION — это МЕСТО проведения тренировки из текста расписания (ЦЕХ№1, Динамит, Беговая и т.д.), а НЕ название клуба/канала!
+   Ищи локацию ПЕРЕД или НАД списком тренировок — часто это отдельная строка типа "ЦЕХ № 1" или "Динамит".
+   НЕ путай название клуба (LB CLUB, Шаг Вперёд) с местом проведения!`
             },
             {
               type: 'image_url',
@@ -983,10 +986,6 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
             parameters: {
               type: 'object',
               properties: {
-                location: { 
-                  type: 'string',
-                  description: 'Название локации из заголовка'
-                },
                 trainings: {
                   type: 'array',
                   items: {
@@ -997,7 +996,8 @@ async function analyzeScheduleImage(imageUrl: string): Promise<ImageScheduleResu
                       coach: { type: 'string', description: 'Имя тренера' },
                       day: { type: 'string', description: 'День недели на русском' },
                       time_start: { type: 'string', description: 'Время начала HH:MM' },
-                      time_end: { type: 'string', description: 'Время окончания HH:MM' }
+                      time_end: { type: 'string', description: 'Время окончания HH:MM' },
+                      location: { type: 'string', description: 'Место проведения (ЦЕХ№1, Динамит и т.д.)' }
                     },
                     required: ['day', 'time_start']
                   }
@@ -1425,8 +1425,8 @@ Deno.serve(async (req) => {
             continue
           }
           
-          // Находим локацию
-          const locationResult = findLocationByImageName(scheduleResult.location, knownLocations)
+          // Глобальная локация (fallback из старого формата)
+          const globalLocationResult = scheduleResult.location ? findLocationByImageName(scheduleResult.location, knownLocations) : null
           
           // Определяем месяцы для генерации дат (текущий и следующий)
           const now = new Date()
@@ -1447,6 +1447,11 @@ Deno.serve(async (req) => {
             console.log(`Training: ${training.type} ${training.day} ${training.time_start} - dates: ${allDates.join(', ')}`)
             
             for (const date of allDates) {
+              // Локация: сначала из training.location, потом глобальная
+              const trainingLocationResult = training.location 
+                ? findLocationByImageName(training.location, knownLocations)
+                : globalLocationResult
+              
               const trainingRecord = {
                 channel_id: channel.id,
                 message_id: `${img.messageId}_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${date}`,
@@ -1456,12 +1461,12 @@ Deno.serve(async (req) => {
                 time_end: training.time_end || null,
                 type: parseTrainingType(training.type || ''),
                 level: training.level || null,
-                location: locationResult?.name || null,
-                location_id: locationResult?.id || null,
+                location: trainingLocationResult?.name || training.location || null,
+                location_id: trainingLocationResult?.id || null,
                 raw_text: JSON.stringify(training),
                 coach: training.coach || null,
                 price: null,
-                description: scheduleResult.location || null
+                description: training.location || scheduleResult.location || null
               }
               
               trainingsToUpsert.push(trainingRecord)
