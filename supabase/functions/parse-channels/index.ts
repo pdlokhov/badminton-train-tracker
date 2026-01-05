@@ -1308,9 +1308,9 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Parse request body to get force parameter
-    const { force = false } = await req.json().catch(() => ({}))
-    console.log(`Force mode: ${force ? 'ON' : 'OFF'}`)
+    // Parse request body to get force and channelId parameters
+    const { force = false, channelId = null } = await req.json().catch(() => ({}))
+    console.log(`Force mode: ${force ? 'ON' : 'OFF'}, ChannelId: ${channelId || 'ALL'}`)
 
     // Log request source for monitoring
     const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown'
@@ -1374,11 +1374,18 @@ Deno.serve(async (req) => {
     const knownLocations: Location[] = locations || []
     console.log(`Loaded ${knownLocations.length} locations from database`)
 
-    // Get active channels
-    const { data: channels, error: channelsError } = await supabase
+    // Get active channels (with optional channelId filter)
+    let channelsQuery = supabase
       .from('channels')
       .select('*')
       .eq('is_active', true)
+
+    if (channelId) {
+      channelsQuery = channelsQuery.eq('id', channelId)
+      console.log(`Filtering to single channel: ${channelId}`)
+    }
+
+    const { data: channels, error: channelsError } = await channelsQuery
 
     if (channelsError) {
       console.error('Error fetching channels:', channelsError)
