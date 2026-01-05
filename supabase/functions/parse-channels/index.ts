@@ -1454,7 +1454,7 @@ Deno.serve(async (req) => {
               
               const trainingRecord = {
                 channel_id: channel.id,
-                message_id: `${img.messageId}_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${date}`,
+                message_id: `img_${training.day}_${training.time_start}_${training.coach || 'nocoach'}_${date}_${training.location || 'noloc'}`,
                 title: `${training.type || 'Тренировка'} ${training.level || ''}`.trim(),
                 date: date,
                 time_start: training.time_start,
