@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles, Calendar, RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -41,6 +41,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+interface YClientsConfig {
+  company_id: string;
+  user_token: string;
+}
+
 interface Channel {
   id: string;
   name: string;
@@ -49,6 +54,8 @@ interface Channel {
   is_active: boolean;
   parse_images: boolean;
   use_ai_text_parsing: boolean;
+  parse_mode: string | null;
+  yclients_config: YClientsConfig | null;
   default_coach: string | null;
   default_location_id: string | null;
   permanent_signup_url_game?: string | null;
@@ -69,6 +76,7 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncingChannelId, setSyncingChannelId] = useState<string | null>(null);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editName, setEditName] = useState("");
   const [editDefaultCoach, setEditDefaultCoach] = useState("");
@@ -86,8 +94,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      // Cast to include permanent_signup_url (column exists but types not yet regenerated)
-      setChannels((data || []) as Channel[]);
+      // Cast to include new columns (types not yet regenerated)
+      setChannels((data || []) as unknown as Channel[]);
     } catch (error) {
       console.error("Error fetching channels:", error);
       toast({
@@ -165,6 +173,35 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
         description: "Не удалось удалить клуб",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSyncYClients = async (channelId: string, channelName: string) => {
+    setSyncingChannelId(channelId);
+    try {
+      const { data, error } = await supabase.functions.invoke('yclients-sync', {
+        body: { channel_id: channelId }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Синхронизация завершена",
+          description: `${channelName}: добавлено ${data.added} тренировок`,
+        });
+      } else {
+        throw new Error(data.error || 'Ошибка синхронизации');
+      }
+    } catch (error) {
+      console.error("Error syncing YClients:", error);
+      toast({
+        title: "Ошибка синхронизации",
+        description: error instanceof Error ? error.message : "Не удалось синхронизировать",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingChannelId(null);
     }
   };
 
@@ -277,7 +314,12 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                   {channel.default_coach || "—"}
                 </TableCell>
                 <TableCell>
-                  {channel.parse_images ? (
+                  {channel.parse_mode === 'yclients' ? (
+                    <Badge className="flex items-center gap-1 w-fit bg-green-500/10 text-green-600 border-green-200">
+                      <Calendar className="h-3 w-3" />
+                      YClients
+                    </Badge>
+                  ) : channel.parse_images || channel.parse_mode === 'telegram_images' ? (
                     <Badge variant="secondary" className="flex items-center gap-1 w-fit">
                       <Image className="h-3 w-3" />
                       Картинки
@@ -304,6 +346,17 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
+                    {channel.parse_mode === 'yclients' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSyncYClients(channel.id, channel.name)}
+                        disabled={syncingChannelId === channel.id}
+                        title="Синхронизировать YClients"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${syncingChannelId === channel.id ? 'animate-spin' : ''}`} />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

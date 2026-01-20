@@ -134,6 +134,7 @@ export type Database = {
           is_active: boolean
           name: string
           parse_images: boolean
+          parse_mode: string | null
           permanent_signup_url_game: string | null
           permanent_signup_url_group: string | null
           topic_id: number | null
@@ -141,6 +142,7 @@ export type Database = {
           url: string
           use_ai_text_parsing: boolean
           username: string
+          yclients_config: Json | null
         }
         Insert: {
           created_at?: string
@@ -150,6 +152,7 @@ export type Database = {
           is_active?: boolean
           name: string
           parse_images?: boolean
+          parse_mode?: string | null
           permanent_signup_url_game?: string | null
           permanent_signup_url_group?: string | null
           topic_id?: number | null
@@ -157,6 +160,7 @@ export type Database = {
           url: string
           use_ai_text_parsing?: boolean
           username: string
+          yclients_config?: Json | null
         }
         Update: {
           created_at?: string
@@ -166,6 +170,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           parse_images?: boolean
+          parse_mode?: string | null
           permanent_signup_url_game?: string | null
           permanent_signup_url_group?: string | null
           topic_id?: number | null
@@ -173,6 +178,7 @@ export type Database = {
           url?: string
           use_ai_text_parsing?: boolean
           username?: string
+          yclients_config?: Json | null
         }
         Relationships: [
           {
