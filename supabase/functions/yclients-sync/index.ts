@@ -188,194 +188,236 @@ async function syncYClientsChannel(
     }
     
     // 2. Получаем список сотрудников (тренеров)
-    const staffData = await fetchYClientsData(
-      `/company/${company_id}/staff`,
-      partnerToken,
-      user_token
-    )
-    
     const staffMap = new Map<number, string>()
-    if (staffData.success && Array.isArray(staffData.data)) {
-      for (const staff of staffData.data) {
-        staffMap.set(staff.id, staff.name)
+    try {
+      const staffData = await fetchYClientsData(
+        `/company/${company_id}/staff`,
+        partnerToken,
+        user_token
+      )
+      
+      if (staffData.success && Array.isArray(staffData.data)) {
+        for (const staff of staffData.data) {
+          staffMap.set(staff.id, staff.name)
+        }
+        console.log(`Found ${staffMap.size} staff members`)
       }
-      console.log(`Found ${staffMap.size} staff members`)
+    } catch (e) {
+      console.log('Could not fetch staff, continuing without staff names')
     }
     
-    // 3. Получаем услуги (типы тренировок)
-    const servicesData = await fetchYClientsData(
-      `/book_services/${company_id}`,
-      partnerToken,
-      user_token
-    )
-    
+    // 3. Получаем услуги через несколько эндпоинтов
     const servicesMap = new Map<number, YClientsService>()
-    if (servicesData.success && Array.isArray(servicesData.data?.services)) {
-      for (const service of servicesData.data.services) {
-        servicesMap.set(service.id, service)
-      }
-      console.log(`Found ${servicesMap.size} services`)
-    }
     
-    // 4. Получаем расписание на следующие 14 дней
-    const dates = getNextDays(14)
-    const trainings: Training[] = []
-    
-    for (const date of dates) {
-      try {
-        // Получаем доступные слоты для каждого сотрудника на дату
-        for (const [staffId, staffName] of staffMap) {
-          try {
-            const timesData = await fetchYClientsData(
-              `/book_times/${company_id}/${staffId}/${date}`,
-              partnerToken,
-              user_token
-            )
-            
-            if (!timesData.success || !Array.isArray(timesData.data)) {
-              continue
-            }
-            
-            for (const slot of timesData.data) {
-              // Получаем услуги для этого слота
-              const serviceIds = slot.service_ids || []
-              
-              for (const serviceId of serviceIds) {
-                const service = servicesMap.get(serviceId)
-                if (!service) continue
-                
-                const time_start = slot.time
-                const durationMinutes = Math.floor(slot.seance_length / 60)
-                const time_end = addMinutesToTime(time_start, durationMinutes)
-                
-                const type = parseServiceType(service.title)
-                const level = parseServiceLevel(service.title)
-                
-                const training: Training = {
-                  channel_id: channel.id,
-                  date,
-                  time_start,
-                  time_end,
-                  coach: staffName || channel.default_coach,
-                  level,
-                  type,
-                  price: service.price_min || null,
-                  location: companyAddress,
-                  location_id: null,
-                  description: service.title,
-                  title: service.title,
-                  raw_text: JSON.stringify({ service, slot, staff: staffName }),
-                  message_id: `yclients:${company_id}:${date}:${staffId}:${serviceId}:${time_start}`,
-                  signup_url: type === 'игровая' 
-                    ? channel.permanent_signup_url_game 
-                    : channel.permanent_signup_url_group,
-                  spots: null
-                }
-                
-                trainings.push(training)
-              }
-            }
-          } catch (e) {
-            // Слоты могут быть пустыми для некоторых дат
-            continue
-          }
-        }
-      } catch (e) {
-        console.error(`Error fetching schedule for ${date}:`, e)
-      }
-    }
-    
-    console.log(`Collected ${trainings.length} training slots from YClients`)
-    
-    // 5. Альтернативный метод: получаем расписание записей через book_dates
-    // Это может дать лучшие результаты для групповых тренировок
-    if (trainings.length === 0) {
-      console.log('No slots found via book_times, trying book_dates...')
+    // Попробуем book_services (для онлайн-записи)
+    try {
+      const servicesData = await fetchYClientsData(
+        `/book_services/${company_id}`,
+        partnerToken,
+        user_token
+      )
       
-      for (const date of dates) {
-        try {
-          const bookDatesData = await fetchYClientsData(
-            `/book_dates/${company_id}?date_from=${date}&date_to=${date}`,
-            partnerToken,
-            user_token
-          )
-          
-          if (bookDatesData.success && Array.isArray(bookDatesData.data?.booking_dates)) {
-            for (const booking of bookDatesData.data.booking_dates) {
-              const service = servicesMap.get(booking.service_id)
-              
-              const training: Training = {
-                channel_id: channel.id,
-                date: booking.date || date,
-                time_start: booking.time || '00:00',
-                time_end: null,
-                coach: staffMap.get(booking.staff_id) || channel.default_coach,
-                level: service ? parseServiceLevel(service.title) : null,
-                type: service ? parseServiceType(service.title) : 'групповая',
-                price: booking.price || service?.price_min || null,
-                location: companyAddress,
-                location_id: null,
-                description: service?.title || booking.title || null,
-                title: service?.title || booking.title || 'Тренировка',
-                raw_text: JSON.stringify(booking),
-                message_id: `yclients:${company_id}:${booking.id || `${date}:${booking.time}`}`,
-                signup_url: null,
-                spots: null
-              }
-              
-              trainings.push(training)
-            }
-          }
-        } catch (e) {
-          continue
+      if (servicesData.success && servicesData.data?.services) {
+        for (const service of servicesData.data.services) {
+          servicesMap.set(service.id, service)
         }
       }
+    } catch (e) {
+      console.log('book_services endpoint failed, trying services...')
     }
     
-    // 6. Ещё один метод: timetable (расписание персонала)
-    if (trainings.length === 0) {
-      console.log('Trying timetable endpoint...')
-      
+    // Попробуем services (общий список услуг компании)
+    if (servicesMap.size === 0) {
       try {
-        const timetableData = await fetchYClientsData(
-          `/timetable/${company_id}`,
+        const servicesData = await fetchYClientsData(
+          `/company/${company_id}/services`,
           partnerToken,
           user_token
         )
         
-        if (timetableData.success && Array.isArray(timetableData.data)) {
-          for (const entry of timetableData.data) {
-            const entryDate = entry.date
-            if (!dates.includes(entryDate)) continue
-            
-            for (const slot of entry.slots || []) {
-              const training: Training = {
-                channel_id: channel.id,
-                date: entryDate,
-                time_start: slot.time_from || slot.time || '00:00',
-                time_end: slot.time_to || null,
-                coach: staffMap.get(slot.staff_id) || channel.default_coach,
-                level: null,
-                type: 'групповая',
-                price: null,
-                location: companyAddress,
-                location_id: null,
-                description: slot.title || null,
-                title: slot.title || 'Тренировка',
-                raw_text: JSON.stringify(slot),
-                message_id: `yclients:${company_id}:${entryDate}:${slot.id || slot.time_from}`,
-                signup_url: null,
-                spots: slot.capacity || null
-              }
-              
-              trainings.push(training)
-            }
+        if (servicesData.success && Array.isArray(servicesData.data)) {
+          for (const service of servicesData.data) {
+            servicesMap.set(service.id, {
+              id: service.id,
+              title: service.title,
+              category_id: service.category_id || 0,
+              price_min: service.price_min || service.price || 0,
+              price_max: service.price_max || service.price || 0,
+              duration: service.duration || service.seance_length || 3600
+            })
           }
         }
       } catch (e) {
-        console.error('Timetable fetch error:', e)
+        console.log('services endpoint also failed')
       }
     }
+    
+    console.log(`Found ${servicesMap.size} services`)
+    
+    const trainings: Training[] = []
+    const dates = getNextDays(14)
+    const dateFrom = dates[0]
+    const dateTo = dates[dates.length - 1]
+    
+    // 4. Попробуем получить activity (групповые занятия)
+    console.log('Trying activity endpoint for group classes...')
+    try {
+      const activityData = await fetchYClientsData(
+        `/activity/${company_id}?from=${dateFrom}&to=${dateTo}`,
+        partnerToken,
+        user_token
+      )
+      
+      if (activityData.success && Array.isArray(activityData.data)) {
+        console.log(`Found ${activityData.data.length} activities`)
+        
+        for (const activity of activityData.data) {
+          // activity может содержать: id, date, time, length, staff_id, service_id, capacity, записи
+          const activityDate = activity.date
+          const activityTime = activity.time || '00:00'
+          const durationSeconds = activity.length || activity.seance_length || 3600
+          const durationMinutes = Math.floor(durationSeconds / 60)
+          const time_end = addMinutesToTime(activityTime, durationMinutes)
+          
+          const service = servicesMap.get(activity.service_id)
+          const serviceTitle = service?.title || activity.title || activity.service_title || 'Тренировка'
+          
+          const training: Training = {
+            channel_id: channel.id,
+            date: activityDate,
+            time_start: activityTime,
+            time_end,
+            coach: staffMap.get(activity.staff_id) || activity.staff_name || channel.default_coach,
+            level: parseServiceLevel(serviceTitle),
+            type: parseServiceType(serviceTitle),
+            price: activity.price || service?.price_min || null,
+            location: companyAddress,
+            location_id: null,
+            description: serviceTitle,
+            title: serviceTitle,
+            raw_text: JSON.stringify(activity),
+            message_id: `yclients:${company_id}:activity:${activity.id}`,
+            signup_url: parseServiceType(serviceTitle) === 'игровая' 
+              ? channel.permanent_signup_url_game 
+              : channel.permanent_signup_url_group,
+            spots: activity.capacity || activity.max_clients || null
+          }
+          
+          trainings.push(training)
+        }
+      }
+    } catch (e) {
+      console.log('Activity endpoint failed:', e instanceof Error ? e.message : e)
+    }
+    
+    // 5. Попробуем records (записи) с фильтрацией по дате
+    if (trainings.length === 0) {
+      console.log('Trying records endpoint...')
+      try {
+        const recordsData = await fetchYClientsData(
+          `/records/${company_id}?start_date=${dateFrom}&end_date=${dateTo}&count=1000`,
+          partnerToken,
+          user_token
+        )
+        
+        if (recordsData.success && Array.isArray(recordsData.data)) {
+          console.log(`Found ${recordsData.data.length} records`)
+          
+          // Группируем записи по activity_id или по времени/сотруднику
+          const groupedRecords = new Map<string, any>()
+          
+          for (const record of recordsData.data) {
+            // Если есть activity_id - это групповая тренировка
+            const groupKey = record.activity_id 
+              ? `activity_${record.activity_id}`
+              : `${record.date}_${record.staff_id}_${record.datetime}`
+            
+            if (!groupedRecords.has(groupKey)) {
+              groupedRecords.set(groupKey, {
+                ...record,
+                count: 1
+              })
+            } else {
+              groupedRecords.get(groupKey).count++
+            }
+          }
+          
+          for (const [_, record] of groupedRecords) {
+            // record.date может быть строкой "YYYY-MM-DD" или Unix timestamp
+            let recordDate: string | null = null
+            if (typeof record.date === 'string' && record.date.includes('-')) {
+              recordDate = record.date
+            } else if (typeof record.date === 'number') {
+              recordDate = new Date(record.date * 1000).toISOString().split('T')[0]
+            } else if (record.date) {
+              // Попробуем распарсить как число
+              const ts = parseInt(record.date, 10)
+              if (!isNaN(ts)) {
+                recordDate = new Date(ts * 1000).toISOString().split('T')[0]
+              }
+            }
+            
+            if (!recordDate || !dates.includes(recordDate)) continue
+            
+            // record.datetime также может быть строкой ISO или Unix timestamp
+            let recordTime = '00:00'
+            if (record.datetime) {
+              if (typeof record.datetime === 'string' && record.datetime.includes('T')) {
+                // ISO формат: "2026-01-20T10:00:00"
+                recordTime = record.datetime.split('T')[1]?.substring(0, 5) || '00:00'
+              } else if (typeof record.datetime === 'number') {
+                const dt = new Date(record.datetime * 1000)
+                recordTime = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+              } else if (typeof record.datetime === 'string') {
+                // Попробуем как Unix timestamp
+                const ts = parseInt(record.datetime, 10)
+                if (!isNaN(ts)) {
+                  const dt = new Date(ts * 1000)
+                  recordTime = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+                }
+              }
+            }
+            
+            const durationSeconds = record.seance_length || record.length || 3600
+            const durationMinutes = Math.floor(durationSeconds / 60)
+            const time_end = addMinutesToTime(recordTime, durationMinutes)
+            
+            const services = record.services || []
+            const firstService = services[0]
+            const serviceTitle = firstService?.title || record.title || 'Тренировка'
+            
+            const training: Training = {
+              channel_id: channel.id,
+              date: recordDate,
+              time_start: recordTime,
+              time_end,
+              coach: record.staff?.name || staffMap.get(record.staff_id) || channel.default_coach,
+              level: parseServiceLevel(serviceTitle),
+              type: parseServiceType(serviceTitle),
+              price: firstService?.cost || firstService?.first_cost || null,
+              location: companyAddress,
+              location_id: null,
+              description: serviceTitle,
+              title: serviceTitle,
+              raw_text: JSON.stringify(record),
+              message_id: `yclients:${company_id}:record:${record.id || record.activity_id || `${recordDate}_${recordTime}`}`,
+              signup_url: parseServiceType(serviceTitle) === 'игровая' 
+                ? channel.permanent_signup_url_game 
+                : channel.permanent_signup_url_group,
+              spots: null
+            }
+            
+            trainings.push(training)
+          }
+        }
+      } catch (e) {
+        console.log('Records endpoint failed:', e instanceof Error ? e.message : e)
+      }
+    }
+    
+    // 6. Fallback не используем book_times из-за rate limits
+    
+    console.log(`Collected ${trainings.length} training slots from YClients`)
     
     if (trainings.length === 0) {
       console.log(`No trainings found for channel ${channel.name}`)
@@ -385,9 +427,15 @@ async function syncYClientsChannel(
     // 7. Сохраняем тренировки в БД
     console.log(`Upserting ${trainings.length} trainings...`)
     
+    // Нормализуем time_start для null значений
+    const normalizedTrainings = trainings.map(t => ({
+      ...t,
+      time_start: t.time_start || '00:00:00'
+    }))
+    
     const { data: upserted, error: upsertError } = await supabase
       .from('trainings')
-      .upsert(trainings, {
+      .upsert(normalizedTrainings, {
         onConflict: 'channel_id,date,time_start,message_id',
         ignoreDuplicates: false
       })
