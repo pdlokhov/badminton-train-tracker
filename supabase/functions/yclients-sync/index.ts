@@ -111,12 +111,16 @@ function parseServiceType(title: string): string | null {
 
 // Определить уровень из названия
 function parseServiceLevel(title: string): string | null {
+  const titleLower = title.toLowerCase()
+  
+  // Сначала проверяем ключевые слова — они приоритетнее букв
+  if (/любой уровень|все уровни|all levels/i.test(titleLower)) return 'любой'
+  if (/начинающ|начальн|новичк|пробн/i.test(titleLower)) return 'начинающий'
+  if (/продвинут|advanced/i.test(titleLower)) return 'продвинутый'
+  
   const rusToLat: Record<string, string> = {
     'А': 'A', 'В': 'B', 'С': 'C', 'Д': 'D', 'Е': 'E', 'Ф': 'F'
   }
-  
-  // Ищем явные паттерны уровней: "уровень A", "ур. B-C", "(C-D)", "гр. A"
-  // Важно: уровень должен быть отдельным токеном, а не частью слова
   
   // Паттерн 1: "уровень/ур./ур/lvl" + буква(ы)
   const explicitMatch = title.match(/(?:уровень|урове|ур\.?|lvl\.?|level)\s*([A-FА-Ф])(?:\s*[-–—\/]\s*([A-FА-Ф]))?/i)
@@ -131,21 +135,8 @@ function parseServiceLevel(title: string): string | null {
     return level
   }
   
-  // Паттерн 2: буквы в скобках "(A)", "(B-C)"
-  const bracketMatch = title.match(/\(([A-FА-Ф])(?:\s*[-–—\/]\s*([A-FА-Ф]))?\)/i)
-  if (bracketMatch) {
-    let level = bracketMatch[1].toUpperCase()
-    level = rusToLat[level] || level
-    if (bracketMatch[2]) {
-      let level2 = bracketMatch[2].toUpperCase()
-      level2 = rusToLat[level2] || level2
-      return `${level}-${level2}`
-    }
-    return level
-  }
-  
-  // Паттерн 3: буквы через дефис отдельно "A-B", "C-D" (не часть слова)
-  const rangeMatch = title.match(/(?:^|[\s(])([A-FА-Ф])\s*[-–—]\s*([A-FА-Ф])(?:$|[\s)])/i)
+  // Паттерн 2: буквы через дефис отдельно "C-D", "D-E" (не часть слова)
+  const rangeMatch = title.match(/(?:^|[\s(,])([A-FА-Ф])\s*[-–—]\s*([A-FА-Ф])(?:$|[\s),])/i)
   if (rangeMatch) {
     let level1 = rangeMatch[1].toUpperCase()
     let level2 = rangeMatch[2].toUpperCase()
@@ -154,19 +145,24 @@ function parseServiceLevel(title: string): string | null {
     return `${level1}-${level2}`
   }
   
-  // Паттерн 4: одиночная буква после "гр." или в конце названия
+  // Паттерн 3: одиночная буква в скобках "(A)", "(B)" — только латинские, чтобы избежать "(В)се"
+  const bracketMatch = title.match(/\(([A-F])(?:\s*[-–—\/]\s*([A-F]))?\)/i)
+  if (bracketMatch) {
+    const level = bracketMatch[1].toUpperCase()
+    if (bracketMatch[2]) {
+      const level2 = bracketMatch[2].toUpperCase()
+      return `${level}-${level2}`
+    }
+    return level
+  }
+  
+  // Паттерн 4: одиночная буква после "гр."
   const groupMatch = title.match(/гр\.?\s*([A-FА-Ф])(?:$|[\s,)])/i)
   if (groupMatch) {
     let level = groupMatch[1].toUpperCase()
     level = rusToLat[level] || level
     return level
   }
-  
-  // Паттерн 5: ключевые слова уровня
-  const titleLower = title.toLowerCase()
-  if (/начинающ|начальн|новичк|пробн/i.test(titleLower)) return 'начинающий'
-  if (/продвинут|advanced/i.test(titleLower)) return 'продвинутый'
-  if (/любой уровень|все уровни|all levels/i.test(titleLower)) return 'любой'
   
   return null
 }

@@ -325,6 +325,7 @@ export type Database = {
           recurring_until: string | null
           signup_url: string | null
           spots: number | null
+          spots_available: number | null
           time_end: string | null
           time_start: string | null
           title: string | null
@@ -350,6 +351,7 @@ export type Database = {
           recurring_until?: string | null
           signup_url?: string | null
           spots?: number | null
+          spots_available?: number | null
           time_end?: string | null
           time_start?: string | null
           title?: string | null
@@ -375,6 +377,7 @@ export type Database = {
           recurring_until?: string | null
           signup_url?: string | null
           spots?: number | null
+          spots_available?: number | null
           time_end?: string | null
           time_start?: string | null
           title?: string | null
