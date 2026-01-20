@@ -323,6 +323,12 @@ async function syncYClientsChannel(
         if (recordsData.success && Array.isArray(recordsData.data)) {
           console.log(`Found ${recordsData.data.length} records`)
           
+          // Логируем первые записи для отладки
+          if (recordsData.data.length > 0) {
+            const sample = recordsData.data[0]
+            console.log(`Sample record: date=${sample.date}, datetime=${sample.datetime}, staff_id=${sample.staff_id}, activity_id=${sample.activity_id}`)
+          }
+          
           // Группируем записи по activity_id или по времени/сотруднику
           const groupedRecords = new Map<string, any>()
           
@@ -342,6 +348,10 @@ async function syncYClientsChannel(
             }
           }
           
+          console.log(`Grouped into ${groupedRecords.size} unique records`)
+          
+          const today = new Date().toISOString().split('T')[0]
+          
           for (const [_, record] of groupedRecords) {
             // record.date может быть строкой "YYYY-MM-DD" или Unix timestamp
             let recordDate: string | null = null
@@ -357,7 +367,16 @@ async function syncYClientsChannel(
               }
             }
             
-            if (!recordDate || !dates.includes(recordDate)) continue
+            // Пропускаем только прошлые записи, не будущие
+            if (!recordDate) {
+              console.log(`Skipping record with no date: ${JSON.stringify(record).substring(0, 100)}`)
+              continue
+            }
+            
+            // Пропускаем записи старше сегодня
+            if (recordDate < today) {
+              continue
+            }
             
             // record.datetime также может быть строкой ISO или Unix timestamp
             let recordTime = '00:00'
