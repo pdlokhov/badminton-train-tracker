@@ -67,6 +67,7 @@ interface Training {
   message_id: string
   signup_url: string | null
   spots: number | null
+  spots_available?: number | null
 }
 
 // Получить список дат на N дней вперёд
@@ -110,21 +111,63 @@ function parseServiceType(title: string): string | null {
 
 // Определить уровень из названия
 function parseServiceLevel(title: string): string | null {
-  const levelMatch = title.match(/([A-FА-Ф])(?:\s*[-–—\/]\s*([A-FА-Ф]))?/i)
-  if (levelMatch) {
-    const rusToLat: Record<string, string> = {
-      'А': 'A', 'В': 'B', 'С': 'C', 'Д': 'D', 'Е': 'E', 'Ф': 'F'
-    }
-    let level = levelMatch[1].toUpperCase()
+  const rusToLat: Record<string, string> = {
+    'А': 'A', 'В': 'B', 'С': 'C', 'Д': 'D', 'Е': 'E', 'Ф': 'F'
+  }
+  
+  // Ищем явные паттерны уровней: "уровень A", "ур. B-C", "(C-D)", "гр. A"
+  // Важно: уровень должен быть отдельным токеном, а не частью слова
+  
+  // Паттерн 1: "уровень/ур./ур/lvl" + буква(ы)
+  const explicitMatch = title.match(/(?:уровень|урове|ур\.?|lvl\.?|level)\s*([A-FА-Ф])(?:\s*[-–—\/]\s*([A-FА-Ф]))?/i)
+  if (explicitMatch) {
+    let level = explicitMatch[1].toUpperCase()
     level = rusToLat[level] || level
-    
-    if (levelMatch[2]) {
-      let level2 = levelMatch[2].toUpperCase()
+    if (explicitMatch[2]) {
+      let level2 = explicitMatch[2].toUpperCase()
       level2 = rusToLat[level2] || level2
       return `${level}-${level2}`
     }
     return level
   }
+  
+  // Паттерн 2: буквы в скобках "(A)", "(B-C)"
+  const bracketMatch = title.match(/\(([A-FА-Ф])(?:\s*[-–—\/]\s*([A-FА-Ф]))?\)/i)
+  if (bracketMatch) {
+    let level = bracketMatch[1].toUpperCase()
+    level = rusToLat[level] || level
+    if (bracketMatch[2]) {
+      let level2 = bracketMatch[2].toUpperCase()
+      level2 = rusToLat[level2] || level2
+      return `${level}-${level2}`
+    }
+    return level
+  }
+  
+  // Паттерн 3: буквы через дефис отдельно "A-B", "C-D" (не часть слова)
+  const rangeMatch = title.match(/(?:^|[\s(])([A-FА-Ф])\s*[-–—]\s*([A-FА-Ф])(?:$|[\s)])/i)
+  if (rangeMatch) {
+    let level1 = rangeMatch[1].toUpperCase()
+    let level2 = rangeMatch[2].toUpperCase()
+    level1 = rusToLat[level1] || level1
+    level2 = rusToLat[level2] || level2
+    return `${level1}-${level2}`
+  }
+  
+  // Паттерн 4: одиночная буква после "гр." или в конце названия
+  const groupMatch = title.match(/гр\.?\s*([A-FА-Ф])(?:$|[\s,)])/i)
+  if (groupMatch) {
+    let level = groupMatch[1].toUpperCase()
+    level = rusToLat[level] || level
+    return level
+  }
+  
+  // Паттерн 5: ключевые слова уровня
+  const titleLower = title.toLowerCase()
+  if (/начинающ|начальн|новичк|пробн/i.test(titleLower)) return 'начинающий'
+  if (/продвинут|advanced/i.test(titleLower)) return 'продвинутый'
+  if (/любой уровень|все уровни|all levels/i.test(titleLower)) return 'любой'
+  
   return null
 }
 
@@ -282,6 +325,14 @@ async function syncYClientsChannel(
           const service = servicesMap.get(activity.service_id)
           const serviceTitle = service?.title || activity.title || activity.service_title || 'Тренировка'
           
+          // Подсчёт мест
+          const totalSpots = activity.capacity || activity.max_clients || activity.resource_count || null
+          const bookedSpots = activity.records_count || activity.clients_count || 0
+          const availableSpots = totalSpots !== null ? Math.max(0, totalSpots - bookedSpots) : null
+          
+          // Логируем для отладки
+          console.log(`Activity: ${serviceTitle}, capacity=${totalSpots}, booked=${bookedSpots}, available=${availableSpots}`)
+          
           const training: Training = {
             channel_id: channel.id,
             date: activityDate,
@@ -300,7 +351,8 @@ async function syncYClientsChannel(
             signup_url: parseServiceType(serviceTitle) === 'игровая' 
               ? channel.permanent_signup_url_game 
               : channel.permanent_signup_url_group,
-            spots: activity.capacity || activity.max_clients || null
+            spots: totalSpots,
+            spots_available: availableSpots
           }
           
           trainings.push(training)
@@ -405,6 +457,11 @@ async function syncYClientsChannel(
             const firstService = services[0]
             const serviceTitle = firstService?.title || record.title || 'Тренировка'
             
+            // Для records capacity обычно не приходит напрямую
+            const totalSpots = record.capacity || record.max_clients || null
+            const bookedSpots = record.count || 0
+            const availableSpots = totalSpots !== null ? Math.max(0, totalSpots - bookedSpots) : null
+            
             const training: Training = {
               channel_id: channel.id,
               date: recordDate,
@@ -423,7 +480,8 @@ async function syncYClientsChannel(
               signup_url: parseServiceType(serviceTitle) === 'игровая' 
                 ? channel.permanent_signup_url_game 
                 : channel.permanent_signup_url_group,
-              spots: null
+              spots: totalSpots,
+              spots_available: availableSpots
             }
             
             trainings.push(training)
