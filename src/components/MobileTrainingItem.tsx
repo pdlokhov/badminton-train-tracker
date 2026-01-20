@@ -1,3 +1,5 @@
+import { Users } from "lucide-react";
+
 interface MobileTrainingItemProps {
   id: string;
   timeStart: string | null;
@@ -8,6 +10,7 @@ interface MobileTrainingItemProps {
   clubName: string | null;
   price: number | null;
   spots: number | null;
+  spotsAvailable?: number | null;
   onClick?: (id: string, clubName: string, type: string | null) => void;
 }
 
@@ -21,6 +24,7 @@ export function MobileTrainingItem({
   clubName,
   price,
   spots,
+  spotsAvailable,
   onClick,
 }: MobileTrainingItemProps) {
 const formatTime = (start: string | null, end: string | null) => {
@@ -37,14 +41,24 @@ const formatTime = (start: string | null, end: string | null) => {
     return `${price} ₽`;
   };
 
-  const formatSpots = (spots: number | null) => {
-    if (spots === null) return null;
-    return `${spots} мест`;
+  const formatSpots = (total: number | null, available: number | null) => {
+    if (available !== null && total !== null) {
+      return `${available}/${total}`;
+    }
+    if (available !== null) {
+      return `${available} своб.`;
+    }
+    if (total !== null) {
+      return `${total}`;
+    }
+    return null;
   };
 
   const handleClick = () => {
     onClick?.(id, clubName || "", type);
   };
+
+  const spotsDisplay = formatSpots(spots, spotsAvailable);
 
   return (
     <div
@@ -61,9 +75,10 @@ const formatTime = (start: string | null, end: string | null) => {
               {formatPrice(price)}
             </span>
           )}
-          {spots !== null && (
-            <span className="text-sm text-muted-foreground">
-              {formatSpots(spots)}
+          {spotsDisplay && (
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />
+              {spotsDisplay}
             </span>
           )}
         </div>

@@ -33,6 +33,7 @@ interface Training {
   description: string | null;
   raw_text: string;
   spots: number | null;
+  spots_available?: number | null;
   signup_url?: string | null;
   is_recurring?: boolean;
   recurrence_day_of_week?: number | null;
@@ -545,6 +546,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               clubName={training.channels?.name || null}
               price={training.price}
               spots={training.spots}
+              spotsAvailable={training.spots_available}
               onClick={(id, clubName, type) => {
                 const url = getTelegramUrl(training);
                 if (url) {
@@ -570,6 +572,7 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               clubName={training.channels?.name || null}
               price={training.price}
               spots={training.spots}
+              spotsAvailable={training.spots_available}
               telegramUrl={getTelegramUrl(training)}
               onTelegramClick={trackTelegramRedirect}
             />

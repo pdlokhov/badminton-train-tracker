@@ -11,6 +11,7 @@ interface TrainingCardProps {
   clubName: string | null;
   price: number | null;
   spots: number | null;
+  spotsAvailable?: number | null;
   telegramUrl?: string;
   onTelegramClick?: (id: string, clubName: string, type: string | null) => void;
 }
@@ -25,6 +26,7 @@ export function TrainingCard({
   clubName,
   price,
   spots,
+  spotsAvailable,
   telegramUrl,
   onTelegramClick,
 }: TrainingCardProps) {
@@ -41,12 +43,27 @@ export function TrainingCard({
     return `${price} ₽`;
   };
 
+  const formatSpots = (total: number | null, available: number | null) => {
+    if (available !== null && total !== null) {
+      return `${available}/${total}`;
+    }
+    if (available !== null) {
+      return `${available} своб.`;
+    }
+    if (total !== null) {
+      return `${total}`;
+    }
+    return null;
+  };
+
   const handleClick = () => {
     if (telegramUrl) {
       onTelegramClick?.(id, clubName || "", type);
       openExternalUrl(telegramUrl);
     }
   };
+
+  const spotsDisplay = formatSpots(spots, spotsAvailable);
 
   return (
     <div
@@ -77,10 +94,10 @@ export function TrainingCard({
             {level}
           </span>
         )}
-        {spots !== null && (
+        {spotsDisplay && (
           <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
             <Users className="h-3.5 w-3.5" />
-            {spots} мест
+            {spotsDisplay}
           </span>
         )}
       </div>
