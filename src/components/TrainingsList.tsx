@@ -302,13 +302,23 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     
     // Apply search filter
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(t => 
-        t.type?.toLowerCase().includes(query) ||
-        t.location?.toLowerCase().includes(query) ||
-        t.channels?.name?.toLowerCase().includes(query) ||
-        t.coach?.toLowerCase().includes(query)
-      );
+      const normalizeForSearch = (value?: string | null) =>
+        (value || "")
+          .toLowerCase()
+          .replace(/ё/g, "е")
+          .replace(/[\s\-_.(),/\\]+/g, "");
+
+      const query = normalizeForSearch(searchQuery);
+      result = result.filter((t) => {
+        const searchable = [
+          t.type,
+          t.location,
+          t.channels?.name,
+          t.coach,
+        ].map(normalizeForSearch);
+
+        return searchable.some((value) => value.includes(query));
+      });
     }
 
     // Apply location search filter (admin only)
