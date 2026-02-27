@@ -16,6 +16,15 @@ interface Channel {
   default_coach: string | null
   permanent_signup_url_game: string | null
   permanent_signup_url_group: string | null
+  parse_mode: string | null
+  external_api_config: any
+}
+
+interface ExternalApiConfig {
+  endpoint_url: string
+  api_key: string
+  days_ahead: number
+  header_name: string
 }
 
 interface Location {
@@ -1344,6 +1353,81 @@ async function smartUpsertTraining(supabase: any, trainingRecord: any): Promise<
   }
 }
 
+// ================== EXTERNAL API HELPERS ==================
+function extApiParseTypeFromCode(code: string | null, title: string | null): string | null {
+  if (code) {
+    const c = code.toUpperCase()
+    if (c === 'GAME' || c === 'GAMING') return 'игровая'
+    if (c === 'GROUP' || c === 'BEGINNER') return 'групповая'
+    if (c === 'MINI_GROUP' || c === 'MINI') return 'мини-группа'
+    if (c === 'KIDS' || c === 'CHILDREN') return 'детская группа'
+    if (c === 'TECHNIQUE' || c === 'TECH') return 'техника'
+    if (c === 'TOURNAMENT') return 'турнир'
+  }
+  if (title) {
+    const t = title.toLowerCase()
+    if (t.includes('игров')) return 'игровая'
+    if (t.includes('мини-группа') || t.includes('мини группа')) return 'мини-группа'
+    if (t.includes('детск')) return 'детская группа'
+    if (t.includes('техник')) return 'техника'
+    if (t.includes('турнир') || t.includes('командник')) return 'турнир'
+    if (t.includes('группов') || t.includes('новички') || t.includes('начинающ')) return 'групповая'
+  }
+  return null
+}
+
+function extApiParseLevelFromTitle(title: string | null, code: string | null): string | null {
+  if (title) {
+    const levelMatch = title.match(/\b([A-Fa-f])\s*[-–]\s*([A-Fa-f])\b/)
+    if (levelMatch) return `${levelMatch[1].toUpperCase()}-${levelMatch[2].toUpperCase()}`
+    const singleMatch = title.match(/уровень\s+([A-Fa-f])\b/i)
+    if (singleMatch) return singleMatch[1].toUpperCase()
+    const t = title.toLowerCase()
+    if (t.includes('новички') || t.includes('начинающ')) return 'начальный'
+    if (t.includes('продвинут')) return 'продвинутый'
+    if (t.includes('любой уровень') || t.includes('все уровни')) return 'любой'
+  }
+  if (code) {
+    const c = code.toUpperCase()
+    if (c === 'BEGINNER') return 'начальный'
+  }
+  return null
+}
+
+function extApiMapToTraining(item: any, channel: Channel): any | null {
+  const date = item.date || null
+  if (!date) return null
+  const timeStart = item.time_start || item.timeStart || item.start_time || null
+  const timeEnd = item.time_end || item.timeEnd || item.end_time || null
+  const uniqueKey = `${date}_${timeStart || ''}_${item.id || item.title || Math.random()}`
+  const messageId = `extapi:${channel.id.substring(0, 8)}:${uniqueKey}`
+  const typeCode = item.training_type_code || null
+  const type = item.type || item.training_type || extApiParseTypeFromCode(typeCode, item.title) || null
+  const level = item.level || extApiParseLevelFromTitle(item.title, typeCode) || null
+  const signupUrl = type === 'игровая'
+    ? (item.signup_url || channel.permanent_signup_url_game)
+    : (item.signup_url || channel.permanent_signup_url_group)
+  return {
+    channel_id: channel.id,
+    date,
+    time_start: timeStart || '00:00:00',
+    time_end: timeEnd,
+    coach: item.coach || item.trainer || channel.default_coach || null,
+    level,
+    type,
+    price: item.price != null ? Number(item.price) : null,
+    location: item.location || item.address || null,
+    location_id: item.location_id || null,
+    description: item.description || null,
+    title: item.title || null,
+    raw_text: JSON.stringify(item),
+    message_id: messageId,
+    signup_url: signupUrl || null,
+    spots: item.spots != null ? Number(item.spots) : null,
+    spots_available: item.spots_available != null ? Number(item.spots_available) : null,
+  }
+}
+
 // ================== MAIN DENO SERVE HANDLER ==================
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -1461,9 +1545,106 @@ Deno.serve(async (req) => {
 
     for (const channel of sortedChannels) {
       console.log(`\n=== Processing channel: ${channel.name} (@${channel.username})${channel.topic_id ? ` [topic: ${channel.topic_id}]` : ''} ===`)
-      const parseMode = channel.parse_images ? 'IMAGES' : (channel.use_ai_text_parsing ? 'AI_TEXT' : 'TEXT')
+      const parseMode = channel.parse_mode || (channel.parse_images ? 'telegram_images' : (channel.use_ai_text_parsing ? 'ai_text' : 'telegram_text'))
       console.log(`Parse mode: ${parseMode}`)
-      
+
+      // ===== РЕЖИМ EXTERNAL API =====
+      if (channel.parse_mode === 'external_api') {
+        console.log(`Processing external API channel: ${channel.name}`)
+        const config = channel.external_api_config as ExternalApiConfig | null
+        if (!config || !config.endpoint_url || !config.api_key) {
+          console.error(`Channel ${channel.name} has external_api mode but no valid config, skipping`)
+          continue
+        }
+
+        try {
+          const daysAhead = config.days_ahead || 14
+          const separator = config.endpoint_url.includes('?') ? '&' : '?'
+          const fetchUrl = `${config.endpoint_url}${separator}date=${daysAhead}`
+          const headerName = config.header_name || 'x-api-key'
+
+          console.log(`Fetching from ${fetchUrl} with header ${headerName}`)
+
+          const response = await fetch(fetchUrl, {
+            method: 'GET',
+            headers: {
+              [headerName]: config.api_key,
+              'Accept': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error(`External API error for ${channel.name}: ${response.status} - ${errorText}`)
+            continue
+          }
+
+          const externalData = await response.json()
+          const items: any[] = Array.isArray(externalData)
+            ? externalData
+            : Array.isArray(externalData?.data)
+              ? externalData.data
+              : []
+
+          console.log(`Received ${items.length} items from external API for ${channel.name}`)
+
+          if (items.length === 0) continue
+
+          // Map items using same logic as external-api-sync
+          const trainings: any[] = []
+          for (const item of items) {
+            const training = extApiMapToTraining(item, channel)
+            if (training) trainings.push(training)
+          }
+
+          console.log(`Mapped ${trainings.length} trainings for ${channel.name}`)
+
+          if (trainings.length > 0) {
+            // Delete old extapi trainings for this channel
+            const today = new Date().toISOString().split('T')[0]
+            const { error: deleteError } = await supabase
+              .from('trainings')
+              .delete()
+              .eq('channel_id', channel.id)
+              .gte('date', today)
+              .like('message_id', 'extapi:%')
+
+            if (deleteError) {
+              console.error('Error deleting old extapi trainings:', deleteError)
+            }
+
+            // Insert in batches
+            const batchSize = 50
+            for (let i = 0; i < trainings.length; i += batchSize) {
+              const batch = trainings.slice(i, i + batchSize)
+              const { error: insertError } = await supabase
+                .from('trainings')
+                .insert(batch)
+
+              if (insertError) {
+                console.error(`Batch insert error:`, insertError)
+                totalSkipped += batch.length
+              } else {
+                totalAdded += batch.length
+              }
+            }
+
+            console.log(`Added ${trainings.length} trainings from external API for ${channel.name}`)
+          }
+        } catch (err) {
+          console.error(`External API sync error for ${channel.name}:`, err)
+        }
+
+        totalParsed++
+        continue
+      }
+
+      // ===== РЕЖИМ WEBHOOK — пропускаем, данные приходят через вебхук =====
+      if (channel.parse_mode === 'webhook') {
+        console.log(`Skipping webhook channel: ${channel.name}`)
+        continue
+      }
+
       if (channel.parse_images) {
         // ===== РЕЖИМ ПАРСИНГА ИЗОБРАЖЕНИЙ =====
         const images = await fetchTelegramChannelImages(channel.username, channel.topic_id)

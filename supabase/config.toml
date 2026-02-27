@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.external-api-sync]
 verify_jwt = false
+
+[functions.external-api-webhook]
+verify_jwt = false
