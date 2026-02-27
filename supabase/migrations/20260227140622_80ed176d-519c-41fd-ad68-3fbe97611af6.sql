@@ -1,0 +1,1 @@
+ALTER TABLE public.channels ADD COLUMN external_api_config jsonb DEFAULT NULL;

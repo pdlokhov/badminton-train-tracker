@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Calendar, MessageSquare, Image } from "lucide-react";
+import { Plus, Calendar, MessageSquare, Image, Globe } from "lucide-react";
 import { channelSchema } from "@/lib/validations";
 import {
   Select,
@@ -19,7 +19,7 @@ interface ChannelFormProps {
   onChannelAdded: () => void;
 }
 
-type ParseMode = 'telegram_text' | 'telegram_images' | 'yclients';
+type ParseMode = 'telegram_text' | 'telegram_images' | 'yclients' | 'external_api';
 
 const extractUsernameAndTopic = (url: string): { username: string | null; topicId: number | null } => {
   // Формат с топиком: https://t.me/vball_spb_chat/3940
@@ -62,11 +62,17 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
   // YClients specific fields
   const [yclientsCompanyId, setYclientsCompanyId] = useState("");
   const [yclientsUserToken, setYclientsUserToken] = useState("");
+
+  // External API specific fields
+  const [apiEndpointUrl, setApiEndpointUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [apiDaysAhead, setApiDaysAhead] = useState("14");
   
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const isYClients = parseMode === 'yclients';
+  const isExternalApi = parseMode === 'external_api';
   const isTelegram = parseMode === 'telegram_text' || parseMode === 'telegram_images';
 
   // Автоматически извлекаем topic_id из URL
@@ -130,6 +136,22 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       }
     }
 
+    // Валидация для External API
+    if (isExternalApi) {
+      if (!name.trim()) {
+        toast({ title: "Ошибка", description: "Укажите название клуба", variant: "destructive" });
+        return;
+      }
+      if (!apiEndpointUrl.trim()) {
+        toast({ title: "Ошибка", description: "Укажите URL эндпоинта", variant: "destructive" });
+        return;
+      }
+      if (!apiKey.trim()) {
+        toast({ title: "Ошибка", description: "Укажите API-ключ", variant: "destructive" });
+        return;
+      }
+    }
+
     let username = '';
     let finalTopicId: number | null = null;
     let normalizedUrl = '';
@@ -147,10 +169,12 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       username = extracted.username;
       finalTopicId = topicId ? parseInt(topicId) : extracted.topicId;
       normalizedUrl = normalizeUrl(username, finalTopicId);
-    } else {
-      // Для YClients генерируем псевдо-URL
+    } else if (isYClients) {
       username = `yclients_${yclientsCompanyId}`;
       normalizedUrl = `https://yclients.com/company/${yclientsCompanyId}`;
+    } else if (isExternalApi) {
+      username = `extapi_${Date.now()}`;
+      normalizedUrl = apiEndpointUrl.trim();
     }
 
     setIsLoading(true);
@@ -174,6 +198,16 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
         channelData.yclients_config = {
           company_id: yclientsCompanyId.trim(),
           user_token: yclientsUserToken.trim(),
+        };
+      }
+
+      // Добавляем External API конфигурацию
+      if (isExternalApi) {
+        channelData.external_api_config = {
+          endpoint_url: apiEndpointUrl.trim(),
+          api_key: apiKey.trim(),
+          days_ahead: parseInt(apiDaysAhead) || 14,
+          header_name: 'x-api-key',
         };
       }
 
@@ -213,6 +247,9 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
       setPermanentSignupUrlGroup("");
       setYclientsCompanyId("");
       setYclientsUserToken("");
+      setApiEndpointUrl("");
+      setApiKey("");
+      setApiDaysAhead("14");
       setParseMode('telegram_text');
       
       onChannelAdded();
@@ -254,6 +291,12 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
               <span className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 YClients API
+              </span>
+            </SelectItem>
+            <SelectItem value="external_api">
+              <span className="flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                Внешний API
               </span>
             </SelectItem>
           </SelectContent>
@@ -330,6 +373,48 @@ export function ChannelForm({ onChannelAdded }: ChannelFormProps) {
               <p className="text-xs text-muted-foreground">
                 API-токен из настроек интеграций YClients
               </p>
+            </div>
+          </>
+        )}
+
+        {/* External API-specific fields */}
+        {isExternalApi && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="apiEndpointUrl">URL эндпоинта</Label>
+              <Input
+                id="apiEndpointUrl"
+                placeholder="https://example.com/functions/v1/public-trainings"
+                value={apiEndpointUrl}
+                onChange={(e) => setApiEndpointUrl(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API-ключ</Label>
+              <Input
+                id="apiKey"
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                type="password"
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">
+                Значение для заголовка x-api-key
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiDaysAhead">Дней вперёд</Label>
+              <Input
+                id="apiDaysAhead"
+                placeholder="14"
+                value={apiDaysAhead}
+                onChange={(e) => setApiDaysAhead(e.target.value)}
+                type="number"
+                min={1}
+                max={60}
+              />
             </div>
           </>
         )}

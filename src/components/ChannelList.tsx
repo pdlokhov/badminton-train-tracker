@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles, Calendar, RefreshCw } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles, Calendar, RefreshCw, Globe } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -46,6 +46,13 @@ interface YClientsConfig {
   user_token: string;
 }
 
+interface ExternalApiConfig {
+  endpoint_url: string;
+  api_key: string;
+  days_ahead: number;
+  header_name: string;
+}
+
 interface Channel {
   id: string;
   name: string;
@@ -56,6 +63,7 @@ interface Channel {
   use_ai_text_parsing: boolean;
   parse_mode: string | null;
   yclients_config: YClientsConfig | null;
+  external_api_config: ExternalApiConfig | null;
   default_coach: string | null;
   default_location_id: string | null;
   permanent_signup_url_game?: string | null;
@@ -205,6 +213,35 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
     }
   };
 
+  const handleSyncExternalApi = async (channelId: string, channelName: string) => {
+    setSyncingChannelId(channelId);
+    try {
+      const { data, error } = await supabase.functions.invoke('external-api-sync', {
+        body: { channel_id: channelId }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Синхронизация завершена",
+          description: `${channelName}: добавлено ${data.added} тренировок`,
+        });
+      } else {
+        throw new Error(data.error || 'Ошибка синхронизации');
+      }
+    } catch (error) {
+      console.error("Error syncing External API:", error);
+      toast({
+        title: "Ошибка синхронизации",
+        description: error instanceof Error ? error.message : "Не удалось синхронизировать",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingChannelId(null);
+    }
+  };
+
   const openEditDialog = (channel: Channel) => {
     setEditingChannel(channel);
     setEditName(channel.name);
@@ -319,6 +356,11 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                       <Calendar className="h-3 w-3" />
                       YClients
                     </Badge>
+                  ) : channel.parse_mode === 'external_api' ? (
+                    <Badge className="flex items-center gap-1 w-fit bg-blue-500/10 text-blue-600 border-blue-200">
+                      <Globe className="h-3 w-3" />
+                      API
+                    </Badge>
                   ) : channel.parse_images || channel.parse_mode === 'telegram_images' ? (
                     <Badge variant="secondary" className="flex items-center gap-1 w-fit">
                       <Image className="h-3 w-3" />
@@ -353,6 +395,17 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                         onClick={() => handleSyncYClients(channel.id, channel.name)}
                         disabled={syncingChannelId === channel.id}
                         title="Синхронизировать YClients"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${syncingChannelId === channel.id ? 'animate-spin' : ''}`} />
+                      </Button>
+                    )}
+                    {channel.parse_mode === 'external_api' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSyncExternalApi(channel.id, channel.name)}
+                        disabled={syncingChannelId === channel.id}
+                        title="Синхронизировать API"
                       >
                         <RefreshCw className={`h-4 w-4 ${syncingChannelId === channel.id ? 'animate-spin' : ''}`} />
                       </Button>
