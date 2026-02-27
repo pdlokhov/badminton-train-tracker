@@ -1,4 +1,4 @@
-import { Users } from "lucide-react";
+import { Users, Flame } from "lucide-react";
 import { openExternalUrl } from "@/lib/openExternalUrl";
 
 interface TrainingCardProps {
@@ -14,6 +14,10 @@ interface TrainingCardProps {
   spotsAvailable?: number | null;
   telegramUrl?: string;
   onTelegramClick?: (id: string, clubName: string, type: string | null) => void;
+  discountPercent?: number | null;
+  originalPrice?: number | null;
+  discountedPrice?: number | null;
+  discountExpiresAt?: string | null;
 }
 
 export function TrainingCard({
@@ -29,7 +33,17 @@ export function TrainingCard({
   spotsAvailable,
   telegramUrl,
   onTelegramClick,
+  discountPercent,
+  originalPrice,
+  discountedPrice,
+  discountExpiresAt,
 }: TrainingCardProps) {
+  const hasActiveDiscount = !!(
+    discountPercent &&
+    discountedPrice != null &&
+    discountExpiresAt &&
+    new Date(discountExpiresAt) > new Date()
+  );
   const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
     const formatTimeStr = (t: string) => t.length > 5 ? t.substring(0, 5) : t;
@@ -68,22 +82,43 @@ export function TrainingCard({
   return (
     <div
       onClick={handleClick}
-      className="group flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md hover:border-primary/30"
+      className={`group flex cursor-pointer flex-col rounded-xl border bg-card p-4 transition-all hover:shadow-md ${
+        hasActiveDiscount
+          ? "border-destructive/40 shadow-sm shadow-destructive/10"
+          : "border-border hover:border-primary/30"
+      }`}
     >
       {/* Header: time + price */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-lg font-semibold text-foreground">
           {formatTime(timeStart, timeEnd)}
         </p>
-        {price !== null && (
-          <span className="text-base font-semibold text-foreground">
-            {formatPrice(price)}
-          </span>
+        {hasActiveDiscount ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground line-through">
+              {formatPrice(originalPrice ?? price)}
+            </span>
+            <span className="text-base font-bold text-destructive">
+              {formatPrice(discountedPrice)}
+            </span>
+          </div>
+        ) : (
+          price !== null && (
+            <span className="text-base font-semibold text-foreground">
+              {formatPrice(price)}
+            </span>
+          )
         )}
       </div>
 
-      {/* Type badge + level badge + spots */}
+      {/* Type badge + level badge + spots + discount badge */}
       <div className="mt-2 flex items-center gap-2 flex-wrap">
+        {hasActiveDiscount && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-destructive px-2 py-0.5 text-sm font-bold text-destructive-foreground">
+            <Flame className="h-3.5 w-3.5" />
+            -{discountPercent}%
+          </span>
+        )}
         {type && (
           <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary">
             {type}

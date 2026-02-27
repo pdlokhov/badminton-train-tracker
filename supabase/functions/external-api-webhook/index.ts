@@ -157,6 +157,63 @@ Deno.serve(async (req) => {
 
     // Parse body
     const body = await req.json()
+
+    // Handle discount.created event
+    if (body.event === 'discount.created') {
+      console.log('Processing discount.created event')
+      const discountItems: any[] = Array.isArray(body.trainings) ? body.trainings : []
+      let updated = 0
+
+      for (const item of discountItems) {
+        const sessionId = item.session_id || item.id
+        if (!sessionId) continue
+
+        if (item.is_active === false) {
+          // Clear discount
+          const { error } = await supabase
+            .from('trainings')
+            .update({
+              discount_percent: null,
+              original_price: null,
+              discounted_price: null,
+              discount_expires_at: null,
+            })
+            .like('message_id', `%${sessionId}%`)
+
+          if (!error) updated++
+        } else {
+          const { error } = await supabase
+            .from('trainings')
+            .update({
+              discount_percent: item.discount_percent || null,
+              original_price: item.original_price != null ? Number(item.original_price) : null,
+              discounted_price: item.discounted_price != null ? Number(item.discounted_price) : null,
+              discount_expires_at: item.expires_at || item.discount_expires_at || null,
+            })
+            .like('message_id', `%${sessionId}%`)
+
+          if (!error) updated++
+        }
+      }
+
+      // Send push notifications for active discounts
+      const activeDiscounts = discountItems.filter(d => d.is_active !== false)
+      if (activeDiscounts.length > 0) {
+        try {
+          await sendPushNotifications(supabase, activeDiscounts)
+        } catch (pushErr) {
+          console.error('Push notification error (non-fatal):', pushErr)
+        }
+      }
+
+      console.log(`Discount event: updated ${updated} trainings`)
+      return new Response(
+        JSON.stringify({ success: true, updated }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Existing flow: upsert trainings
     const items: any[] = Array.isArray(body)
       ? body
       : Array.isArray(body?.trainings)
@@ -224,3 +281,73 @@ Deno.serve(async (req) => {
     )
   }
 })
+
+// Web Push notification sending
+async function sendPushNotifications(supabase: any, discounts: any[]) {
+  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')
+  const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')
+  const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@badminton-spb.ru'
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.log('VAPID keys not configured, skipping push')
+    return
+  }
+
+  const { data: subscriptions } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth')
+
+  if (!subscriptions || subscriptions.length === 0) {
+    console.log('No push subscribers')
+    return
+  }
+
+  // Build notification payload
+  const discount = discounts[0]
+  const title = `🔥 Last Minute -${discount.discount_percent || 30}%!`
+  const priceInfo = discount.discounted_price
+    ? `${discount.discounted_price} ₽ (было ${discount.original_price || ''} ₽)`
+    : ''
+  const body = discount.title
+    ? `${discount.title}, ${priceInfo}`
+    : `Скидка на тренировку! ${priceInfo}`
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    icon: '/pwa-192x192.png',
+    url: '/',
+    tag: 'last-minute-discount',
+  })
+
+  // Use web-push library via esm.sh
+  const webpush = await import('https://esm.sh/web-push@3.6.7')
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
+
+  let sent = 0
+  let failed = 0
+
+  for (const sub of subscriptions) {
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        },
+        payload
+      )
+      sent++
+    } catch (err: any) {
+      failed++
+      // Remove expired subscriptions (410 Gone)
+      if (err?.statusCode === 410 || err?.statusCode === 404) {
+        await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('endpoint', sub.endpoint)
+      }
+    }
+  }
+
+  console.log(`Push notifications: sent=${sent}, failed=${failed}`)
+}

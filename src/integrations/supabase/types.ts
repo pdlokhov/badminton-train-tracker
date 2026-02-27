@@ -308,6 +308,33 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string | null
+          endpoint: string
+          id: string
+          p256dh: string
+          visitor_id: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          p256dh: string
+          visitor_id?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          visitor_id?: string | null
+        }
+        Relationships: []
+      }
       trainings: {
         Row: {
           channel_id: string
@@ -315,12 +342,16 @@ export type Database = {
           created_at: string
           date: string | null
           description: string | null
+          discount_expires_at: string | null
+          discount_percent: number | null
+          discounted_price: number | null
           id: string
           is_recurring: boolean | null
           level: string | null
           location: string | null
           location_id: string | null
           message_id: string
+          original_price: number | null
           price: number | null
           raw_text: string
           recurrence_day_of_week: number | null
@@ -341,12 +372,16 @@ export type Database = {
           created_at?: string
           date?: string | null
           description?: string | null
+          discount_expires_at?: string | null
+          discount_percent?: number | null
+          discounted_price?: number | null
           id?: string
           is_recurring?: boolean | null
           level?: string | null
           location?: string | null
           location_id?: string | null
           message_id: string
+          original_price?: number | null
           price?: number | null
           raw_text: string
           recurrence_day_of_week?: number | null
@@ -367,12 +402,16 @@ export type Database = {
           created_at?: string
           date?: string | null
           description?: string | null
+          discount_expires_at?: string | null
+          discount_percent?: number | null
+          discounted_price?: number | null
           id?: string
           is_recurring?: boolean | null
           level?: string | null
           location?: string | null
           location_id?: string | null
           message_id?: string
+          original_price?: number | null
           price?: number | null
           raw_text?: string
           recurrence_day_of_week?: number | null
