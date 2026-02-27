@@ -231,17 +231,37 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
   
   // Разбиваем текст по дням недели с датой
   // Паттерн: эмодзи (опционально) + день недели + (DD.MM)
-  const dayNames = '(?:понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)'
-  const dayBlockRegex = new RegExp(
-    `(?:^|\\n)[^\\n]*?(${dayNames})\\s*\\((\\d{1,2}\\.\\d{1,2})\\)([\\s\\S]*?)(?=(?:^|\\n)[^\\n]*?(?:${dayNames})\\s*\\(\\d{1,2}\\.\\d{1,2}\\)|$)`,
-    'gim'
-  )
+  const dayNames = '(?:понедельник|вторник|среда|четверг|пятница|суббота|воскресенье|пн|вт|ср|чт|пт|сб|вс)'
+  const dayHeaderPattern = `(?:^|\\n)[^\\n]*?${dayNames}\\s*\\(\\d{1,2}\\.\\d{1,2}\\)`
+  // Split text by day headers, then extract info from each part
+  const dayHeaderRegex = new RegExp(dayHeaderPattern, 'gim')
+  const headers: { dayName: string; dateStr: string; startIndex: number; endIndex: number }[] = []
+  const headerFullRegex = new RegExp(`(?:^|\\n)([^\\n]*?(${dayNames})\\s*\\((\\d{1,2}\\.\\d{1,2})\\))`, 'gim')
+  let headerMatch
+  while ((headerMatch = headerFullRegex.exec(text)) !== null) {
+    headers.push({
+      dayName: headerMatch[2],
+      dateStr: headerMatch[3],
+      startIndex: headerMatch.index + headerMatch[0].indexOf(headerMatch[1]) + headerMatch[1].length,
+      endIndex: 0
+    })
+  }
+  // Set end index for each header to the start of the next header or end of text
+  for (let i = 0; i < headers.length; i++) {
+    headers[i].endIndex = i + 1 < headers.length 
+      ? text.lastIndexOf('\n', headers[i + 1].startIndex - (headers[i + 1].startIndex > 0 ? 1 : 0)) 
+      : text.length
+    if (headers[i].endIndex < headers[i].startIndex) {
+      headers[i].endIndex = i + 1 < headers.length ? headers[i + 1].startIndex : text.length
+    }
+  }
   
-  let match
-  while ((match = dayBlockRegex.exec(text)) !== null) {
-    const dayName = match[1].trim()
-    const dateStr = match[2]
-    const dayContent = match[3].trim()
+  console.log(`Found ${headers.length} day headers in weekly schedule`)
+  for (const header of headers) {
+    const dayName = header.dayName.trim()
+    const dateStr = header.dateStr
+    const dayContent = text.substring(header.startIndex, header.endIndex).trim()
+    console.log(`Day block match: dayName="${dayName}", date="${dateStr}", contentLen=${dayContent.length}, content="${dayContent.substring(0, 200)}"`)
     
     // Парсим дату
     const [day, month] = dateStr.split('.').map(d => d.padStart(2, '0'))
