@@ -231,7 +231,11 @@ function parseWeeklySchedule(text: string, messageId: string, knownLocations: Lo
   
   // Разбиваем текст по дням недели с датой
   // Паттерн: эмодзи (опционально) + день недели + (DD.MM)
-  const dayBlockRegex = /(?:[⭐️😀☄️💌🤙🔥❤️💙💚💛💜🧡🖤🤍🤎💖💗💓💞💕💟❣️💔❤️‍🔥❤️‍🩹]+\s*)?([А-Яа-я]+)\s*\((\d{1,2}\.\d{1,2})\)([\s\S]*?)(?=(?:[⭐️😀☄️💌🤙🔥❤️💙💚💛💜🧡🖤🤍🤎💖💗💓💞💕💟❣️💔❤️‍🔥❤️‍🩹]+\s*)?[А-Яа-я]+\s*\(\d{1,2}\.\d{1,2}\)|$)/g
+  const dayNames = '(?:понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)'
+  const dayBlockRegex = new RegExp(
+    `(?:^|\\n)[^\\n]*?(${dayNames})\\s*\\((\\d{1,2}\\.\\d{1,2})\\)([\\s\\S]*?)(?=(?:^|\\n)[^\\n]*?(?:${dayNames})\\s*\\(\\d{1,2}\\.\\d{1,2}\\)|$)`,
+    'gim'
+  )
   
   let match
   while ((match = dayBlockRegex.exec(text)) !== null) {
