@@ -37,6 +37,7 @@ interface Training {
   price: number | null;
   location: string | null;
   spots: number | null;
+  spots_available?: number | null;
   signup_url?: string | null;
   is_recurring?: boolean;
   recurring_template_id?: string | null;
@@ -177,9 +178,13 @@ export function AdminTrainingsTable({
                         Регулярная
                       </Badge>
                     )}
-                    {training.spots !== null && (
+                    {(training.spots !== null || training.spots_available !== null) && (
                       <span className="text-xs text-muted-foreground">
-                        {training.spots} мест
+                        {training.spots_available !== null && training.spots !== null
+                          ? `${training.spots_available}/${training.spots} мест`
+                          : training.spots_available !== null
+                            ? `${training.spots_available} своб.`
+                            : `${training.spots} мест`}
                       </span>
                     )}
                   </div>
