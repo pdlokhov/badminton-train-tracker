@@ -35,6 +35,10 @@ interface Training {
   spots: number | null;
   spots_available?: number | null;
   signup_url?: string | null;
+  discount_percent?: number | null;
+  original_price?: number | null;
+  discounted_price?: number | null;
+  discount_expires_at?: string | null;
   is_recurring?: boolean;
   recurrence_day_of_week?: number | null;
   recurring_until?: string | null;
@@ -557,6 +561,10 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               price={training.price}
               spots={training.spots}
               spotsAvailable={training.spots_available}
+              discountPercent={training.discount_percent}
+              originalPrice={training.original_price}
+              discountedPrice={training.discounted_price}
+              discountExpiresAt={training.discount_expires_at}
               onClick={(id, clubName, type) => {
                 const url = getTelegramUrl(training);
                 if (url) {
@@ -585,6 +593,10 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               spotsAvailable={training.spots_available}
               telegramUrl={getTelegramUrl(training)}
               onTelegramClick={trackTelegramRedirect}
+              discountPercent={training.discount_percent}
+              originalPrice={training.original_price}
+              discountedPrice={training.discounted_price}
+              discountExpiresAt={training.discount_expires_at}
             />
           ))}
         </div>

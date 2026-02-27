@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.external-api-webhook]
 verify_jwt = false
+
+[functions.push-subscribe]
+verify_jwt = false

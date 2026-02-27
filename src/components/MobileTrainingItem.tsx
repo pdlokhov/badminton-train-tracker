@@ -1,4 +1,4 @@
-import { Users } from "lucide-react";
+import { Users, Flame } from "lucide-react";
 
 interface MobileTrainingItemProps {
   id: string;
@@ -12,6 +12,10 @@ interface MobileTrainingItemProps {
   spots: number | null;
   spotsAvailable?: number | null;
   onClick?: (id: string, clubName: string, type: string | null) => void;
+  discountPercent?: number | null;
+  originalPrice?: number | null;
+  discountedPrice?: number | null;
+  discountExpiresAt?: string | null;
 }
 
 export function MobileTrainingItem({
@@ -26,7 +30,17 @@ export function MobileTrainingItem({
   spots,
   spotsAvailable,
   onClick,
+  discountPercent,
+  originalPrice,
+  discountedPrice,
+  discountExpiresAt,
 }: MobileTrainingItemProps) {
+  const hasActiveDiscount = !!(
+    discountPercent &&
+    discountedPrice != null &&
+    discountExpiresAt &&
+    new Date(discountExpiresAt) > new Date()
+  );
 const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
     // Remove seconds if present (HH:MM:SS -> HH:MM)
@@ -63,17 +77,32 @@ const formatTime = (start: string | null, end: string | null) => {
   return (
     <div
       onClick={handleClick}
-      className="flex cursor-pointer items-start justify-between border-b border-border py-4 last:border-b-0"
+      className={`flex cursor-pointer items-start justify-between py-4 last:border-b-0 ${
+        hasActiveDiscount
+          ? "border-b border-destructive/20 bg-destructive/5 -mx-4 px-4 rounded-lg"
+          : "border-b border-border"
+      }`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-base font-semibold text-foreground">
             {formatTime(timeStart, timeEnd)}
           </span>
-          {price !== null && (
-            <span className="text-base font-medium text-foreground">
-              {formatPrice(price)}
-            </span>
+          {hasActiveDiscount ? (
+            <>
+              <span className="text-sm text-muted-foreground line-through">
+                {formatPrice(originalPrice ?? price)}
+              </span>
+              <span className="text-base font-bold text-destructive">
+                {formatPrice(discountedPrice)}
+              </span>
+            </>
+          ) : (
+            price !== null && (
+              <span className="text-base font-medium text-foreground">
+                {formatPrice(price)}
+              </span>
+            )
           )}
           {spotsDisplay && (
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -83,6 +112,12 @@ const formatTime = (start: string | null, end: string | null) => {
           )}
         </div>
         <div className="mt-1 flex items-center gap-2 flex-wrap">
+          {hasActiveDiscount && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-destructive px-1.5 py-0.5 text-xs font-bold text-destructive-foreground">
+              <Flame className="h-3 w-3" />
+              -{discountPercent}%
+            </span>
+          )}
           {type && (
             <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
               {type}

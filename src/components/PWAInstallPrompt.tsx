@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { X, Download, Share } from "lucide-react";
+import { X, Download, Share, Bell } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { subscribeToPush, isPushSupported, isStandaloneMode } from "@/lib/pushSubscription";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -51,7 +52,13 @@ export function PWAInstallPrompt() {
     console.log('[PWA Debug] Standalone mode:', isStandalone);
     
     if (isStandalone) {
-      console.log('[PWA Debug] Skipping - already installed (standalone)');
+      console.log('[PWA Debug] Skipping banner - already installed (standalone)');
+      // Auto-subscribe to push when in standalone mode
+      if (isPushSupported()) {
+        subscribeToPush().then(ok => {
+          if (ok) console.log('[PWA Debug] Auto-subscribed to push in standalone mode');
+        });
+      }
       return;
     }
 
@@ -119,6 +126,12 @@ export function PWAInstallPrompt() {
           console.log('[PWA Debug] ✅ User ACCEPTED installation');
           trackEvent("pwa_install", { platform: "android" });
           setIsVisible(false);
+          // Auto-subscribe to push after install
+          if (isPushSupported()) {
+            subscribeToPush().then(ok => {
+              if (ok) trackEvent("push_subscribed", { trigger: "install" });
+            });
+          }
         } else {
           console.log('[PWA Debug] ❌ User DISMISSED installation');
           trackEvent("pwa_install_cancelled", { platform: "android" });
