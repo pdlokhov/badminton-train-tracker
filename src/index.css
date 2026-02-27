@@ -44,6 +44,15 @@
     --sidebar-accent-foreground: 0 0% 13%;
     --sidebar-border: 0 0% 91%;
     --sidebar-ring: 214 100% 50%;
+
+    --promo-blue: 214 100% 50%;
+    --promo-blue-bg: 214 100% 96%;
+    --promo-green: 142 71% 45%;
+    --promo-green-bg: 142 71% 95%;
+    --promo-purple: 270 67% 55%;
+    --promo-purple-bg: 270 67% 95%;
+    --promo-gold: 43 96% 50%;
+    --promo-gold-bg: 43 96% 94%;
   }
 
   .dark {
@@ -83,6 +92,15 @@
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 214 100% 55%;
+
+    --promo-blue: 214 100% 55%;
+    --promo-blue-bg: 214 100% 15%;
+    --promo-green: 142 71% 50%;
+    --promo-green-bg: 142 71% 12%;
+    --promo-purple: 270 67% 60%;
+    --promo-purple-bg: 270 67% 15%;
+    --promo-gold: 43 96% 55%;
+    --promo-gold-bg: 43 96% 14%;
   }
 }
 

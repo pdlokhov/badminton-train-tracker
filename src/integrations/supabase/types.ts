@@ -125,6 +125,47 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_promotions: {
+        Row: {
+          channel_id: string
+          created_at: string
+          expires_at: string | null
+          highlight_color: string
+          id: string
+          is_active: boolean
+          label: string | null
+          starts_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          expires_at?: string | null
+          highlight_color?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          starts_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          expires_at?: string | null
+          highlight_color?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_promotions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           created_at: string

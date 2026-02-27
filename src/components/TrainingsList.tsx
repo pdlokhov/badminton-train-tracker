@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import type { PromotionInfo } from "./TrainingCard";
 import { useToast } from "@/hooks/use-toast";
 import { openExternalUrl } from "@/lib/openExternalUrl";
 import { SearchBar } from "./SearchBar";
@@ -62,7 +63,7 @@ interface TrainingsListProps {
 
 export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsListProps) {
   const isMobile = useIsMobile();
-  const { trackPageView, trackTelegramRedirect, trackSearch, trackDateChange } = useAnalytics();
+  const { trackPageView, trackTelegramRedirect, trackSearch, trackDateChange, trackPromotionImpression, trackPromotionClick } = useAnalytics();
   const { toast } = useToast();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,14 +93,32 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
   const [coaches, setCoaches] = useState<string[]>([]);
   const [levels, setLevels] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
-
+  const [promotions, setPromotions] = useState<Map<string, PromotionInfo>>(new Map());
   const fetchChannels = async () => {
     const { data } = await supabase.from("channels").select("id, name").order("name");
     setChannels(data || []);
   };
 
+  const fetchPromotions = async () => {
+    const now = new Date().toISOString();
+    const { data } = await supabase
+      .from("channel_promotions")
+      .select("id, channel_id, highlight_color, label, expires_at")
+      .eq("is_active", true)
+      .lte("starts_at", now) as { data: Array<{ id: string; channel_id: string; highlight_color: string; label: string | null; expires_at: string | null }> | null };
+
+    const map = new Map<string, PromotionInfo>();
+    (data || []).forEach((p) => {
+      if (!p.expires_at || new Date(p.expires_at) > new Date()) {
+        map.set(p.channel_id, { id: p.id, channel_id: p.channel_id, highlight_color: p.highlight_color, label: p.label });
+      }
+    });
+    setPromotions(map);
+  };
+
   useEffect(() => {
     fetchChannels();
+    fetchPromotions();
     trackPageView();
   }, []);
 
@@ -565,6 +584,9 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               originalPrice={training.original_price}
               discountedPrice={training.discounted_price}
               discountExpiresAt={training.discount_expires_at}
+              promotion={promotions.get(training.channel_id) || null}
+              onPromotionImpression={trackPromotionImpression}
+              onPromotionClick={trackPromotionClick}
               onClick={(id, clubName, type) => {
                 const url = getTelegramUrl(training);
                 if (url) {
@@ -597,6 +619,9 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
               originalPrice={training.original_price}
               discountedPrice={training.discounted_price}
               discountExpiresAt={training.discount_expires_at}
+              promotion={promotions.get(training.channel_id) || null}
+              onPromotionImpression={trackPromotionImpression}
+              onPromotionClick={trackPromotionClick}
             />
           ))}
         </div>

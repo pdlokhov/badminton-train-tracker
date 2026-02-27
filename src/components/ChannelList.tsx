@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles, Calendar, RefreshCw, Globe } from "lucide-react";
+import { Trash2, ExternalLink, Image, FileText, Pencil, MapPin, Sparkles, Calendar, RefreshCw, Globe, Star } from "lucide-react";
+import { ChannelPromotionForm } from "./ChannelPromotionForm";
 import {
   Select,
   SelectContent,
@@ -92,6 +93,8 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
   const [editPermanentSignupUrlGame, setEditPermanentSignupUrlGame] = useState("");
   const [editPermanentSignupUrlGroup, setEditPermanentSignupUrlGroup] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [promoChannelId, setPromoChannelId] = useState<string | null>(null);
+  const [promoChannelName, setPromoChannelName] = useState("");
   const { toast } = useToast();
 
   const fetchChannels = async () => {
@@ -413,6 +416,17 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => {
+                        setPromoChannelId(channel.id);
+                        setPromoChannelName(channel.name);
+                      }}
+                      title="Промо-выделение"
+                    >
+                      <Star className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => openEditDialog(channel)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -537,6 +551,16 @@ export function ChannelList({ refreshTrigger }: ChannelListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Promotion Form */}
+      {promoChannelId && (
+        <ChannelPromotionForm
+          channelId={promoChannelId}
+          channelName={promoChannelName}
+          open={!!promoChannelId}
+          onOpenChange={(open) => !open && setPromoChannelId(null)}
+        />
+      )}
     </>
   );
 }
