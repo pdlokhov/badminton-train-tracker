@@ -130,6 +130,7 @@ export type Database = {
           created_at: string
           default_coach: string | null
           default_location_id: string | null
+          external_api_config: Json | null
           id: string
           is_active: boolean
           name: string
@@ -148,6 +149,7 @@ export type Database = {
           created_at?: string
           default_coach?: string | null
           default_location_id?: string | null
+          external_api_config?: Json | null
           id?: string
           is_active?: boolean
           name: string
@@ -166,6 +168,7 @@ export type Database = {
           created_at?: string
           default_coach?: string | null
           default_location_id?: string | null
+          external_api_config?: Json | null
           id?: string
           is_active?: boolean
           name?: string
