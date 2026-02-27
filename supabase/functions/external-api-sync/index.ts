@@ -188,19 +188,63 @@ Deno.serve(async (req) => {
   }
 })
 
+function parseTypeFromCode(code: string | null, title: string | null): string | null {
+  if (code) {
+    const c = code.toUpperCase()
+    if (c === 'GAME' || c === 'GAMING') return 'игровая'
+    if (c === 'GROUP' || c === 'BEGINNER') return 'групповая'
+    if (c === 'MINI_GROUP' || c === 'MINI') return 'мини-группа'
+    if (c === 'KIDS' || c === 'CHILDREN') return 'детская группа'
+    if (c === 'TECHNIQUE' || c === 'TECH') return 'техника'
+    if (c === 'TOURNAMENT') return 'турнир'
+  }
+  if (title) {
+    const t = title.toLowerCase()
+    if (t.includes('игров')) return 'игровая'
+    if (t.includes('мини-группа') || t.includes('мини группа')) return 'мини-группа'
+    if (t.includes('детск')) return 'детская группа'
+    if (t.includes('техник')) return 'техника'
+    if (t.includes('турнир') || t.includes('командник')) return 'турнир'
+    if (t.includes('группов') || t.includes('новички') || t.includes('начинающ')) return 'групповая'
+  }
+  return null
+}
+
+function parseLevelFromTitle(title: string | null, code: string | null): string | null {
+  if (title) {
+    // Match level patterns like E-F, C-D, D-E, B-C, A-B etc.
+    const levelMatch = title.match(/\b([A-Fa-f])\s*[-–]\s*([A-Fa-f])\b/)
+    if (levelMatch) return `${levelMatch[1].toUpperCase()}-${levelMatch[2].toUpperCase()}`
+    // Match single level like "уровень C"
+    const singleMatch = title.match(/уровень\s+([A-Fa-f])\b/i)
+    if (singleMatch) return singleMatch[1].toUpperCase()
+    // Check for descriptive levels
+    const t = title.toLowerCase()
+    if (t.includes('новички') || t.includes('начинающ')) return 'начальный'
+    if (t.includes('продвинут')) return 'продвинутый'
+    if (t.includes('любой уровень') || t.includes('все уровни')) return 'любой'
+  }
+  if (code) {
+    const c = code.toUpperCase()
+    if (c === 'BEGINNER') return 'начальный'
+  }
+  return null
+}
+
 function mapToTraining(item: any, channel: Channel): Training | null {
-  // Try to extract date
   const date = item.date || null
   if (!date) return null
 
   const timeStart = item.time_start || item.timeStart || item.start_time || null
   const timeEnd = item.time_end || item.timeEnd || item.end_time || null
 
-  // Generate a unique message_id
   const uniqueKey = `${date}_${timeStart || ''}_${item.id || item.title || Math.random()}`
   const messageId = `extapi:${channel.id.substring(0, 8)}:${uniqueKey}`
 
-  const type = item.type || item.training_type || null
+  const typeCode = item.training_type_code || null
+  const type = item.type || item.training_type || parseTypeFromCode(typeCode, item.title) || null
+  const level = item.level || parseLevelFromTitle(item.title, typeCode) || null
+
   const signupUrl = type === 'игровая'
     ? (item.signup_url || channel.permanent_signup_url_game)
     : (item.signup_url || channel.permanent_signup_url_group)
@@ -211,7 +255,7 @@ function mapToTraining(item: any, channel: Channel): Training | null {
     time_start: timeStart,
     time_end: timeEnd,
     coach: item.coach || item.trainer || channel.default_coach || null,
-    level: item.level || null,
+    level,
     type,
     price: item.price != null ? Number(item.price) : null,
     location: item.location || item.address || null,
