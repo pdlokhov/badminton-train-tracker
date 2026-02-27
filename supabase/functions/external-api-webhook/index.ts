@@ -62,8 +62,14 @@ function mapToTraining(item: any, channel: Channel): any | null {
   const timeStart = item.time_start || item.timeStart || item.start_time || null
   const timeEnd = item.time_end || item.timeEnd || item.end_time || null
 
-  const uniqueKey = `${date}_${timeStart || ''}_${item.id || item.title || Math.random()}`
-  const messageId = `extapi:${channel.id.substring(0, 8)}:${uniqueKey}`
+  // Stable message_id is critical for upsert to UPDATE existing records (e.g. spots_available)
+  // Priority: item.id (external system ID) > title+time combo > date+time only
+  const stableKey = item.id
+    ? String(item.id)
+    : item.title
+      ? `${date}_${timeStart || ''}_${item.title}`
+      : `${date}_${timeStart || ''}`
+  const messageId = `extapi:${channel.id.substring(0, 8)}:${stableKey}`
 
   const typeCode = item.training_type_code || null
   const type = item.type || item.training_type || parseTypeFromCode(typeCode, item.title) || null
