@@ -14,6 +14,7 @@ import { DailyVisitorsChart } from "./DailyVisitorsChart";
 import { RetentionTable } from "./RetentionTable";
 import { UserActivityTable } from "./UserActivityTable";
 import { SignupDistributionChart } from "./SignupDistributionChart";
+import { PromotionEffectivenessTable } from "./PromotionEffectivenessTable";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +54,8 @@ export function AnalyticsDashboard() {
   });
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [signupDistribution, setSignupDistribution] = useState<any[]>([]);
+  const [promoStats, setPromoStats] = useState<{ channelName: string; impressions: number; clicks: number; ctr: number }[]>([]);
+  const [regularCtr, setRegularCtr] = useState(0);
   const [realtimeStats, setRealtimeStats] = useState({
     todayViews: 0,
     todayVisitors: 0,
@@ -321,6 +324,47 @@ export function AnalyticsDashboard() {
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         setDailyVisitorsData(dailyVisitors);
+
+        // Promotion effectiveness
+        const promoImpressions = events.filter(e => e.event_type === "promotion_impression");
+        const promoClicks = events.filter(e => e.event_type === "promotion_click");
+        const regularClicks = events.filter(e => e.event_type === "training_click");
+
+        const promoByChannel = new Map<string, { impressions: number; clicks: number; channelId: string }>();
+        promoImpressions.forEach(e => {
+          const d = e.event_data as Record<string, unknown>;
+          const cid = String(d?.channel_id || "");
+          if (!promoByChannel.has(cid)) promoByChannel.set(cid, { impressions: 0, clicks: 0, channelId: cid });
+          promoByChannel.get(cid)!.impressions++;
+        });
+        promoClicks.forEach(e => {
+          const d = e.event_data as Record<string, unknown>;
+          const cid = String(d?.channel_id || "");
+          if (!promoByChannel.has(cid)) promoByChannel.set(cid, { impressions: 0, clicks: 0, channelId: cid });
+          promoByChannel.get(cid)!.clicks++;
+        });
+
+        // Get channel names from telegram events
+        const channelNameMap = new Map<string, string>();
+        telegramEvents.forEach(e => {
+          const d = e.event_data as Record<string, unknown>;
+          const name = d?.channel_name as string;
+          if (name) channelNameMap.set(String(d?.channel_id || name), name);
+        });
+
+        const promoStatsArr = Array.from(promoByChannel.values())
+          .filter(s => s.impressions > 0)
+          .map(s => ({
+            channelName: channelNameMap.get(s.channelId) || s.channelId,
+            impressions: s.impressions,
+            clicks: s.clicks,
+            ctr: s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0,
+          }));
+        setPromoStats(promoStatsArr);
+
+        const totalRegularImpressions = events.filter(e => e.event_type === "training_click").length;
+        const totalRegularClicks = telegramClicks;
+        setRegularCtr(totalRegularImpressions > 0 ? (totalRegularClicks / totalRegularImpressions) * 100 : 0);
       }
     }
 
@@ -557,6 +601,9 @@ export function AnalyticsDashboard() {
         <PopularChannelsChart data={channelData.popularChannels} />
         <ChannelTypesTable data={channelData.channelTypes} />
       </div>
+
+      {/* Promotion effectiveness */}
+      <PromotionEffectivenessTable promoStats={promoStats} regularCtr={regularCtr} />
 
       {/* User activity section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

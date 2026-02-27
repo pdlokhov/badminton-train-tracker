@@ -75,6 +75,30 @@ export function useAnalytics() {
     []
   );
 
+  // Track promotion impression
+  const trackPromotionImpression = useCallback(
+    (promotionId: string, channelId: string, trainingId: string) => {
+      sendEvent("promotion_impression", {
+        promotion_id: promotionId,
+        channel_id: channelId,
+        training_id: trainingId,
+      });
+    },
+    []
+  );
+
+  // Track promotion click
+  const trackPromotionClick = useCallback(
+    (promotionId: string, channelId: string, trainingId: string) => {
+      sendEvent("promotion_click", {
+        promotion_id: promotionId,
+        channel_id: channelId,
+        training_id: trainingId,
+      });
+    },
+    []
+  );
+
   // Track session start on mount
   useEffect(() => {
     if (hasAnalyticsConsent()) {
@@ -97,5 +121,7 @@ export function useAnalytics() {
     trackSearch,
     trackDateChange,
     trackFilterApply,
+    trackPromotionImpression,
+    trackPromotionClick,
   };
 }
