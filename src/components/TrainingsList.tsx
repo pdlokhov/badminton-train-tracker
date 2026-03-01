@@ -15,7 +15,7 @@ import { AdminFiltersBar } from "./AdminFiltersBar";
 import { AdminTrainingsTable } from "./AdminTrainingsTable";
 import { ManualTrainingForm } from "./ManualTrainingForm";
 import { Button } from "./ui/button";
-import { Calendar, Plus } from "lucide-react";
+import { Calendar, Plus, Flame } from "lucide-react";
 
 interface Training {
   id: string;
@@ -364,6 +364,20 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
     });
   }, [filteredTrainings]);
 
+  // Helper to check if a training has an active discount
+  const isDiscountActive = (t: Training) => !!(
+    t.discount_percent &&
+    t.discounted_price != null &&
+    (!t.discount_expires_at || new Date(t.discount_expires_at) > new Date())
+  );
+
+  // Promo trainings: with active discount or active promotion
+  const promoTrainings = useMemo(() => {
+    return sortedTrainings.filter(t => 
+      isDiscountActive(t) || promotions.has(t.channel_id)
+    );
+  }, [sortedTrainings, promotions]);
+
   // Sort trainings for admin table view
   const adminSortedTrainings = useMemo(() => {
     const dir = tableSortDirection === "asc" ? 1 : -1;
@@ -553,6 +567,43 @@ export function TrainingsList({ refreshTrigger, isAdmin = false }: TrainingsList
         <span className="text-muted-foreground">•</span>
         <span className="text-base text-muted-foreground">{sortedTrainings.length} тренировок</span>
       </div>
+
+      {/* Promotions Section */}
+      {!loading && promoTrainings.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Flame className="h-5 w-5 text-destructive" />
+            <h2 className="text-lg font-semibold text-foreground">Акции и спецпредложения</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory scrollbar-hide">
+            {promoTrainings.map((training) => (
+              <div key={`promo-${training.id}`} className="min-w-[280px] max-w-[320px] snap-start shrink-0">
+                <TrainingCard
+                  id={training.id}
+                  timeStart={training.time_start}
+                  timeEnd={training.time_end}
+                  type={training.type}
+                  level={training.level}
+                  location={getLocation(training)}
+                  clubName={training.channels?.name || null}
+                  price={training.price}
+                  spots={training.spots}
+                  spotsAvailable={training.spots_available}
+                  telegramUrl={getTelegramUrl(training)}
+                  onTelegramClick={trackTelegramRedirect}
+                  discountPercent={training.discount_percent}
+                  originalPrice={training.original_price}
+                  discountedPrice={training.discounted_price}
+                  discountExpiresAt={training.discount_expires_at}
+                  promotion={promotions.get(training.channel_id) || null}
+                  onPromotionImpression={trackPromotionImpression}
+                  onPromotionClick={trackPromotionClick}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
