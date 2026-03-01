@@ -78,8 +78,7 @@ export function MobileTrainingItem({
   const hasActiveDiscount = !!(
     discountPercent &&
     discountedPrice != null &&
-    discountExpiresAt &&
-    new Date(discountExpiresAt) > new Date()
+    (!discountExpiresAt || new Date(discountExpiresAt) > new Date())
   );
   const formatTime = (start: string | null, end: string | null) => {
     if (!start) return "—";
